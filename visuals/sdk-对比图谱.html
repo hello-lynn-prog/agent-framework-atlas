@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Agent SDK 代码级对比图谱 · 9 家源码级拆解</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#0b1220; font-family:"Microsoft YaHei","PingFang SC",sans-serif; color:#e2e8f0; }
+  .slide { width:1600px; margin:24px auto; background:linear-gradient(160deg,#0f172a 0%,#111c33 100%);
+           border:1px solid #1e293b; border-radius:16px; padding:36px 48px; position:relative; overflow:hidden; }
+  .slide::before { content:""; position:absolute; top:0; left:0; right:0; height:4px;
+                   background:linear-gradient(90deg,#38bdf8,#a78bfa,#f59e0b,#d97757); }
+  .snum { position:absolute; top:22px; right:32px; font-size:13px; color:#475569; letter-spacing:2px; }
+  h1 { font-size:34px; margin-bottom:6px; } h2 { font-size:26px; margin-bottom:4px; }
+  .sub { color:#94a3b8; font-size:15px; margin-bottom:22px; }
+  .card { background:#16213a; border:1px solid #24314f; border-radius:12px; padding:14px 16px; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:600; }
+  .muted { color:#64748b; } .hl { color:#fbbf24; } .mono { font-family:Consolas,monospace; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { border:1px solid #24314f; padding:6px 8px; font-size:12.5px; text-align:left; vertical-align:top; }
+  th { background:#1b2742; }
+  /* ── SDK 主题色 ── */
+  .c-da{color:#38bdf8} .c-oai{color:#34d399} .c-smo{color:#fbbf24} .c-pi{color:#a78bfa}
+  .c-llm{color:#4ade80} .c-pyd{color:#f87171} .c-dsh{color:#60a5fa} .c-her{color:#f59e0b}
+  .c-cas{color:#d97757} .c-cdx{color:#94a3b8}
+  .b-da{border-top:4px solid #38bdf8} .b-oai{border-top:4px solid #34d399} .b-smo{border-top:4px solid #fbbf24}
+  .b-pi{border-top:4px solid #a78bfa} .b-llm{border-top:4px solid #4ade80} .b-pyd{border-top:4px solid #f87171}
+  .b-dsh{border-top:4px solid #60a5fa} .b-her{border-top:4px solid #f59e0b} .b-cas{border-top:4px solid #d97757}
+  .b-cdx{border-top:4px solid #94a3b8}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  /* 矩阵单元格语义色 */
+  .y{background:rgba(52,211,153,.10)} .n{background:rgba(100,116,139,.08);color:#64748b}
+  .star{background:rgba(251,191,36,.12)} .part{background:rgba(56,189,248,.10)}
+  .foot{margin-top:16px;color:#475569;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ S1 定位总览 ═══════════ -->
+<section class="slide" id="s1" data-h="940">
+  <div class="snum">01 / 08</div>
+  <h1>十套 Agent 代码库 · 一图看懂同与不同</h1>
+  <div class="sub">源码级拆解 9 家 + deepagents/LangGraph 基准 ｜ 全部结论可在 harness-research/ 源码中按 file:line 验证 ｜ 2026-09-30</div>
+
+  <div style="display:grid;grid-template-columns:7fr 6fr;gap:24px">
+    <div class="card" style="padding:20px">
+      <div style="font-size:17px;font-weight:700;margin-bottom:14px">范式族谱（按主循环形态聚类）</div>
+      <div style="font-size:14px;line-height:2.1">
+        <div style="color:#94a3b8">agent 主循环，全世界只有这几种写法 ——</div>
+        <div>├─ <b class="c-oai">单 while 循环系</b>　<span class="tag" style="background:rgba(52,211,153,.15)">OpenAI Agents SDK</span> <span class="muted mono">run.py:987 · 四态 next_step · 默认 10 turns</span></div>
+        <div>├─ <b class="c-smo">CodeAct 代码即动作</b>　<span class="tag" style="background:rgba(251,191,36,.15)">Smolagents</span> <span class="muted mono">AST 解释器 · print 即观察 · 异常熔断</span></div>
+        <div>├─ <b class="c-pi">极简回调核</b>　<span class="tag" style="background:rgba(167,139,250,.15)">Pi</span> <span class="muted mono">双 while · 9 个回调 = 全部扩展面</span></div>
+        <div>├─ <b class="c-her">phase 状态机</b>　<span class="tag" style="background:rgba(245,158,11,.15)">Hermes</span> <span class="muted mono">conversation_loop.py:1636 · 三值 verdict</span></div>
+        <div>├─ <b class="c-da">图编排系</b>　<span class="tag" style="background:rgba(56,189,248,.15)">LangGraph+deepagents</span> <span class="tag" style="background:rgba(248,113,113,.15)">Pydantic AI</span> <span class="tag" style="background:rgba(74,222,128,.15)">LlamaIndex</span> <span class="muted mono">节点图 / 四节点图 / tick 事件图</span></div>
+        <div>├─ <b class="c-dsh">插件总线系</b>　<span class="tag" style="background:rgba(96,165,250,.15)">DeepSeek Harness</span> <span class="muted mono">Cordis · 循环决策点全是事件 waterfall</span></div>
+        <div>├─ <b class="c-cdx">重工程多壳系</b>　<span class="tag" style="background:rgba(148,163,184,.2)">Codex</span> <span class="muted mono">单核 core × tui/exec/app-server 三壳 · Rust</span></div>
+        <div>└─ <b class="c-cas">闭源薄包装系</b>　<span class="tag" style="background:rgba(217,119,87,.15)">Claude Agent SDK</span> <span class="muted mono">spawn + stream-json 控制协议 · 循环在闭源 CLI</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px">
+      <div style="font-size:17px;font-weight:700;margin-bottom:10px">控制权光谱：循环归谁管？</div>
+      <div style="position:relative;height:330px">
+        <div style="position:absolute;top:150px;left:0;right:0;height:14px;border-radius:99px;
+             background:linear-gradient(90deg,#34d399,#38bdf8,#a78bfa,#f59e0b,#f87171)"></div>
+        <div style="position:absolute;top:176px;left:0;font-size:12px;color:#34d399">你写循环</div>
+        <div style="position:absolute;top:176px;right:0;font-size:12px;color:#f87171">黑盒，只能挂钩子</div>
+        <!-- dots: top row / bottom row alternate -->
+        <div style="position:absolute;top:112px;left:1%"><div class="c-da" style="font-size:13px;font-weight:700">LangGraph 裸核</div><div class="muted" style="font-size:11px">图节点全可编程</div><div style="width:14px;height:14px;border-radius:50%;background:#38bdf8;margin-top:4px"></div></div>
+        <div style="position:absolute;top:196px;left:11%"><div style="width:14px;height:14px;border-radius:50%;background:#38bdf8;margin-bottom:4px"></div><div class="c-da" style="font-size:13px;font-weight:700">deepagents</div><div class="muted" style="font-size:11px">中间件栈模板</div></div>
+        <div style="position:absolute;top:112px;left:22%"><div class="c-pyd" style="font-size:13px;font-weight:700">Pydantic AI</div><div class="muted" style="font-size:11px">Capability 三包裹点</div><div style="width:14px;height:14px;border-radius:50%;background:#f87171;margin-top:4px"></div></div>
+        <div style="position:absolute;top:196px;left:33%"><div style="width:14px;height:14px;border-radius:50%;background:#60a5fa;margin-bottom:4px"></div><div class="c-dsh" style="font-size:13px;font-weight:700">dsh</div><div class="muted" style="font-size:11px">waterfall 可拦可换核</div></div>
+        <div style="position:absolute;top:112px;left:44%"><div class="c-llm" style="font-size:13px;font-weight:700">LlamaIndex</div><div class="muted" style="font-size:11px">事件图可定制步骤</div><div style="width:14px;height:14px;border-radius:50%;background:#4ade80;margin-top:4px"></div></div>
+        <div style="position:absolute;top:196px;left:55%"><div style="width:14px;height:14px;border-radius:50%;background:#34d399;margin-bottom:4px"></div><div class="c-oai" style="font-size:13px;font-weight:700">OpenAI SDK</div><div class="muted" style="font-size:11px">对象配置·循环固定</div></div>
+        <div style="position:absolute;top:112px;left:65%"><div class="c-smo" style="font-size:13px;font-weight:700">Smolagents</div><div class="muted" style="font-size:11px">框架写死·可传钩子</div><div style="width:14px;height:14px;border-radius:50%;background:#fbbf24;margin-top:4px"></div></div>
+        <div style="position:absolute;top:196px;left:75%"><div style="width:14px;height:14px;border-radius:50%;background:#a78bfa;margin-bottom:4px"></div><div class="c-pi" style="font-size:13px;font-weight:700">Pi</div><div class="muted" style="font-size:11px">仅 9 个回调点</div></div>
+        <div style="position:absolute;top:112px;left:85%"><div class="c-cdx" style="font-size:13px;font-weight:700">Codex</div><div class="muted" style="font-size:11px">编译进 Rust 核心</div><div style="width:14px;height:14px;border-radius:50%;background:#94a3b8;margin-top:4px"></div></div>
+        <div style="position:absolute;top:196px;left:93%"><div style="width:14px;height:14px;border-radius:50%;background:#d97757;margin-bottom:4px"></div><div class="c-cas" style="font-size:13px;font-weight:700">CASDK</div><div class="muted" style="font-size:11px">闭源 CLI+hooks</div></div>
+      </div>
+      <div class="muted" style="font-size:13px;margin-top:8px;border-top:1px solid #24314f;padding-top:10px">
+        <span class="hl">一句话：</span>左边卖「可编程的状态机原语」，右边卖「已调好的循环」——选型就是在这条轴上选位置。</div>
+    </div>
+  </div>
+  <div class="foot">＊ Hermes 位于“编译进核”一侧：259 文件巨型 mixin 类，改循环语义 = 改源码。</div>
+</section>
+
+<!-- ═══════════ S2 六大共性 ═══════════ -->
+<section class="slide" id="s2" data-h="930">
+  <div class="snum">02 / 08</div>
+  <h2>共性：所有 harness，同一副骨架</h2>
+  <div class="sub">把 9 家的外壳全部拆掉，里面是同一个循环 —— 差异只长在循环的“接口”上</div>
+
+  <div class="card" style="padding:22px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:center;font-size:15px">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 18px">用户输入</div>
+      <div style="color:#475569;font-size:22px">→</div>
+      <div style="background:rgba(56,189,248,.12);border:1px solid #38bdf8;border-radius:10px;padding:12px 18px">组装上下文<br><span class="muted" style="font-size:12px">system+历史+工具schema</span></div>
+      <div style="color:#475569;font-size:22px">→</div>
+      <div style="background:rgba(167,139,250,.12);border:1px solid #a78bfa;border-radius:10px;padding:12px 18px">LLM 采样</div>
+      <div style="color:#475569;font-size:22px">→</div>
+      <div style="background:rgba(251,191,36,.12);border:1px solid #fbbf24;border-radius:10px;padding:12px 18px">有工具调用？</div>
+      <div style="color:#475569;font-size:22px">→</div>
+      <div style="background:rgba(52,211,153,.12);border:1px solid #34d399;border-radius:10px;padding:12px 18px">执行工具 →<br>观察回填</div>
+      <div style="color:#fbbf24;font-size:26px;font-weight:700">↻</div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 18px">纯文本回复<br><span class="muted" style="font-size:12px">= 终止</span></div>
+    </div>
+    <div style="text-align:center;margin-top:10px" class="muted">这条回路在 10 家代码里都能找到，一家例外都没有 —— <b style="color:#e2e8f0">差异全在虚线的位置和形状</b></div>
+  </div>
+
+  <div class="grid3">
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">① 终止权普遍交给模型</div><div class="muted" style="font-size:13px;line-height:1.7">dsh / Hermes / CASDK / Codex / Pi <b style="color:#e2e8f0">均无 turn 硬上限</b>；设上限的全是研究系框架（OpenAI 10、LangGraph 25、PydanticAI 50、LlamaIndex 20）—— 产品 harness 信任模型 + 靠护栏兜底。</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">② 多 Agent 只有三种姿势</div><div class="muted" style="font-size:13px;line-height:1.7">换手 handoff ／ 借用 as_tool ／ 隔离派发 task。<b style="color:#e2e8f0">产品系（dsh/Hermes/CASDK/Codex）清一色隔离派发</b>，没有一家做 agent 间移交。</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">③ 持久化收敛到 append-only</div><div class="muted" style="font-size:13px;line-height:1.7">4 家独立发明了 JSONL 事件日志：dsh 事件溯源 v3 ／ Codex rollout ／ Pi 会话树 ／ CASDK transcript —— “日志是真相，视图是投影”成了行业共识。</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">④ 压缩已是标配</div><div class="muted" style="font-size:13px;line-height:1.7">9/10 有上下文压缩（阈值 0.8×窗口、-16384、mid/post-turn……）；<b style="color:#e2e8f0">唯一没有的是 LangGraph 裸核</b> —— 从0实现时最容易漏掉的件。</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">⑤ 为 prompt cache 费尽心思</div><div class="muted" style="font-size:13px;line-height:1.7">Pi 的 section 增量补丁、dsh 的“压缩调用=上次请求真前缀”、Hermes 的 memory 冻结快照 —— <b style="color:#e2e8f0">省 cache 钱是架构级设计目标</b>，不是优化项。</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">⑥ 官方集体自认“我不安全”</div><div class="muted" style="font-size:13px;line-height:1.7">Hermes：“唯一边界是操作系统”；dsh：“未经审计、非唯一安全控制”；Smolagents：“非安全沙箱”；Pi：干脆不做，答案=容器化。</div></div>
+  </div>
+</section>
+
+<!-- ═══════════ S3 主循环形态 ═══════════ -->
+<section class="slide" id="s3" data-h="1010">
+  <div class="snum">03 / 08</div>
+  <h2>差异性 ①：主循环的八种写法（代码级）</h2>
+  <div class="sub">同一副骨架 × 八种实现 —— 每张小图就是该家循环体的真实形状（附入口坐标）</div>
+  <div class="grid2" style="gap:14px">
+    <div class="card b-oai"><span class="tag" style="background:rgba(52,211,153,.15)">OpenAI Agents SDK</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">run.py:987 · run_config.py:45</div>
+      <div style="font-size:13.5px;line-height:1.8">单 while（默认 <b>10 turns</b> 抛 MaxTurnsExceeded）<br>每轮产出四态之一：FinalOutput / Handoff / RunAgain / Interruption → handoff 只是<b>换循环变量</b>不退出循环</div></div>
+    <div class="card b-da"><span class="tag" style="background:rgba(56,189,248,.15)">LangGraph + deepagents</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">pregel/index.ts:445 · loop.ts:958</div>
+      <div style="font-size:13.5px;line-height:1.8">Pregel 内核 superstep 推进（recursionLimit 默认 <b>25</b>）<br>deepagents = 中间件栈包在图外；TS 侧 Zod-first 声明</div></div>
+    <div class="card b-smo"><span class="tag" style="background:rgba(251,191,36,.15)">Smolagents</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">agents.py:540-611</div>
+      <div style="font-size:13.5px;line-height:1.8">while(max_steps){ 重建全历史 → 生成 → <b>parse_code_blobs → AST 解释器执行</b> → print 即观察 }<br>final_answer 靠<b>抛 BaseException 熔断</b>防模型吞终止信号</div></div>
+    <div class="card b-pi"><span class="tag" style="background:rgba(167,139,250,.15)">Pi</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">agent-loop.ts:162-320</div>
+      <div style="font-size:13.5px;line-height:1.8">双 while + <b>9 个回调 = 全部扩展面</b>（无中间件栈）<br>steering 消息可在轮间插队；循环本身 500 行读完</div></div>
+    <div class="card b-llm"><span class="tag" style="background:rgba(74,222,128,.15)">LlamaIndex</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">runner.py:399,530</div>
+      <div style="font-size:13.5px;line-height:1.8">引擎 = <b>tick 纯 reducer</b> 控制环（事件溯源，回放重建状态）；agent 循环编译成 6 步事件图，max_iterations=<b>20</b></div></div>
+    <div class="card b-pyd"><span class="tag" style="background:rgba(248,113,113,.15)">Pydantic AI</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">pydantic_graph 四节点</div>
+      <div style="font-size:13.5px;line-height:1.8">循环字面是一张图：UserPrompt → ModelRequest → CallTools → SetFinalResult，终止 = <b>End(FinalResult)</b>；图对象 lru_cache 全局复用</div></div>
+    <div class="card b-dsh"><span class="tag" style="background:rgba(96,165,250,.15)">DeepSeek Harness</span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">agent-loop/src/agent.ts:252,296,398</div>
+      <div style="font-size:13.5px;line-height:1.8"><b>kick → turn → step</b> 三层 while，无 turn 上限<br>循环每个决策点（pre-step/request/error/工具前后）都是 <b>Cordis 事件 waterfall</b> —— 循环本身是可整体替换的插件</div></div>
+    <div class="card" style="border-top:4px solid #f59e0b"><span class="tag" style="background:rgba(245,158,11,.15)">Hermes ＋ <span style="color:#94a3b8">Codex / CASDK 对照</span></span>
+      <div class="mono muted" style="font-size:11px;margin:4px 0">conversation_loop.py:1636 ｜ turn.rs:426 ｜ query.py:924-1033</div>
+      <div style="font-size:13.5px;line-height:1.8">Hermes：手写 <b>phase 状态机</b>（约 40 个轮内状态反射注入，verdict 三值 continue/break/return）<br>Codex：<b>run_turn 内环</b> + RegularTask 外环只续跑 steering 插队输入<br>CASDK：循环全在闭源 CLI，包装层最重逻辑 = 判定「<b>result ≠ run 结束</b>」（等 idle 帧或 600s ceiling）</div></div>
+  </div>
+  <div class="foot">共同点：10 家全部<b>无 shell 之外的内置长任务概念</b>；差异点：终止条件、状态转移的显式程度、可拦截点数量（0 个 ~ 全拦截）。</div>
+</section>
+
+<!-- ═══════════ S4 多 Agent 编排 ═══════════ -->
+<section class="slide" id="s4" data-h="960">
+  <div class="snum">04 / 08</div>
+  <h2>差异性 ②：多 Agent 编排只有三条路</h2>
+  <div class="sub">换手（交接跑）· 借用（当工具用）· 隔离派发（派出去）—— 10 家各站一队，历史/上下文传递方式是本质区别</div>
+  <div class="grid3">
+    <div class="card" style="border-top:4px solid #34d399">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">路线 A：换手 handoff<span class="muted" style="font-size:12px">（接力赛）</span></div>
+      <div style="font-size:13px;line-height:1.9">
+        <b class="c-oai">OpenAI SDK</b>：transfer_to_X 工具，<b>旧历史折叠成摘要文本</b>再交接（handoffs/history.py:19-34）<br>
+        <b class="c-llm">LlamaIndex</b>：return_direct 工具改写 next_agent 指针，<b>全量共享 memory 不折叠</b><br>
+        <b class="c-pyd">Pydantic AI</b>：程序化换手（代码里显式切 run）
+        <div class="muted" style="margin-top:8px;border-top:1px dashed #334155;padding-top:6px">本质：同一个上下文容器换主人 —— 折叠不折叠是最大分歧</div></div>
+    </div>
+    <div class="card" style="border-top:4px solid #f87171">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">路线 B：借用 as_tool<span class="muted" style="font-size:12px">（外包）</span></div>
+      <div style="font-size:13px;line-height:1.9">
+        <b class="c-oai">OpenAI SDK</b>：agent.as_tool() = 隔离运行（agent.py:606）≈ task<br>
+        <b class="c-pyd">Pydantic AI</b>：子 Agent 包成工具，独立 run/history，<b>看不到父会话</b>
+        <div class="muted" style="margin-top:8px;border-top:1px dashed #334155;padding-top:6px">本质：子代理是一次性函数调用 —— 父只拿返回值</div></div>
+    </div>
+    <div class="card" style="border-top:4px solid #38bdf8">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">路线 C：隔离派发 task<span class="muted" style="font-size:12px">（派工）—— 产品系全在这</span></div>
+      <div style="font-size:13px;line-height:1.9">
+        <b class="c-da">deepagents</b>：task 工具，只回最后消息（239K→7.9K tokens）<br>
+        <b class="c-dsh">dsh</b>：多后端派发（in-process / fork 播种父历史 / <b>进程外派活给 Codex、Claude Code</b>）<br>
+        <b class="c-her">Hermes</b>：delegate_task + 阻断集（禁递归/禁写 memory）+ 心跳/steer<br>
+        <b class="c-cas">CASDK</b>：subagents = 独立会话文件，可事后单独 resume<br>
+        <b class="c-cdx">Codex</b>：spawn_agent = 全功能子线程（<b>审批硬关</b>）+ 父子图持久化<br>
+        <b class="c-smo">Smolagents</b>：子 agent = 解释器里的普通 Python 函数，<b>能用代码编排</b>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;padding:12px 16px;font-size:13.5px">
+    <b style="color:#a78bfa">另类：</b><b class="c-pi">Pi</b> 干脆不做框架级多 Agent —— 子任务 = 工具内部嵌套 LLM 调用，循环保持单份。
+    <span class="muted">隔离派发队内部又分两派：<b style="color:#e2e8f0">一次性派发</b>（deepagents/OpenAI as_tool，调用即弃）vs <b style="color:#e2e8f0">常驻线程</b>（Codex 可续聊/Hermes 可 steer，像管理下属）。</span>
+  </div>
+</section>
+
+<!-- ═══════════ S5 特征矩阵 ═══════════ -->
+<section class="slide" id="s5" data-h="1230">
+  <div class="snum">05 / 08</div>
+  <h2>十家 × 十项代码特征矩阵</h2>
+  <div class="sub">绿=有/支持 · 灰=没有 · 黄=该家独有亮点 · 蓝=部分或闭源 —— 这是全图谱信息密度最高的一页</div>
+  <table style="table-layout:fixed">
+    <tr>
+      <th style="width:96px">特征</th>
+      <th class="b-da">deepagents<br>LangGraph</th><th class="b-oai">OpenAI<br>Agents SDK</th><th class="b-smo">Smola-<br>gents</th><th class="b-pi">Pi</th>
+      <th class="b-llm">Llama-<br>Index</th><th class="b-pyd">Pydantic<br>AI</th><th class="b-dsh">DeepSeek<br>Harness</th><th class="b-her">Hermes</th>
+      <th class="b-cas">Claude<br>Agent SDK</th><th class="b-cdx">Codex</th>
+    </tr>
+    <tr><td><b>主循环</b></td>
+      <td class="y">图 superstep+中间件栈</td><td class="y">单 while 四态</td><td class="y">CodeAct 解释器</td><td class="y">双 while 回调核</td><td class="y">tick 事件图</td><td class="y">四节点图</td><td class="y">三层 while+waterfall</td><td class="y">phase 状态机</td><td class="part">闭源（协议客户端）</td><td class="y">内环+外环多壳</td></tr>
+    <tr><td><b>turn 上限</b></td>
+      <td class="y">25 (recursionLimit)</td><td class="y">10</td><td class="y">max_steps</td><td class="n">无</td><td class="y">20</td><td class="y">request_limit 50</td><td class="n">无</td><td class="n">sys.maxsize</td><td class="part">flag 转发闭源执行</td><td class="n">无</td></tr>
+    <tr><td><b>子代理</b></td>
+      <td class="y">task 隔离派发</td><td class="y">handoff+as_tool</td><td class="star">解释器内普通函数<br>可用代码编排</td><td class="n">✗（嵌套调用）</td><td class="y">扁平+handoff</td><td class="y">借用当工具</td><td class="star">多后端可外派<br>Codex/CC</td><td class="y">delegate+阻断集</td><td class="y">独立会话可 resume</td><td class="star">全功能子线程<br>审批硬关</td></tr>
+    <tr><td><b>持久化</b></td>
+      <td class="y">checkpointer 快照</td><td class="star">RunState 全程可序列化</td><td class="y">AgentMemory 留痕</td><td class="star">JSONL 树<br>分支零复制</td><td class="y">事件溯源三层</td><td class="n">刻意不内置</td><td class="star">事件溯源 JSONL v3<br>SHA-256 契约</td><td class="y">SQLite WAL+FTS5</td><td class="part">闭源 jsonl+镜像</td><td class="y">rollout JSONL+DB</td></tr>
+    <tr><td><b>自动压缩</b></td>
+      <td class="n">✗（自己造）</td><td class="n">✗</td><td class="n">仅 2 万字符截断</td><td class="y">✓ -16384 阈值</td><td class="part">滑动截断</td><td class="part">渐进披露替代</td><td class="star">压缩调用=真前缀<br>复用 KV cache</td><td class="y">✓ 预检门+中段摘要</td><td class="part">✓ 闭源（外泄边界）</td><td class="y">✓ mid/post 双时机</td></tr>
+    <tr><td><b>HITL 形态</b></td>
+      <td class="star">interrupt() 协程挂起</td><td class="y">Interruption 审批</td><td class="n">✗</td><td class="n">✗（容器化）</td><td class="y">异常+step 重放</td><td class="star">审批=正常输出<br>fail-closed 回注</td><td class="y">answerer 服务链</td><td class="y">调用点阻塞<br>可 Telegram 批</td><td class="star">活进程阻塞<br>canUseTool</td><td class="y">四态 approval policy</td></tr>
+    <tr><td><b>OS 级沙箱</b></td>
+      <td class="n">✗</td><td class="n">✗</td><td class="n">自认不安全</td><td class="part">外包容器</td><td class="n">✗</td><td class="n">✗</td><td class="part">same-world 三档</td><td class="part">docker 整机镜像</td><td class="y">bash 沙箱+域名白名单</td><td class="star">Seatbelt/Landlock/<br>bwrap/Windows 四平台</td></tr>
+    <tr><td><b>模型协议</b></td>
+      <td class="y">中立 600+</td><td class="part">Responses 形状</td><td class="y">9 家 generate()</td><td class="y">按协议 42 模型</td><td class="y">厚抽象+ReAct 兜底</td><td class="y">20+ 适配器</td><td class="y">中立词表+插件</td><td class="part">内部绑 OpenAI 形状</td><td class="n">绑 Claude</td><td class="n">绑 Responses<br>（chat 已物理删除）</td></tr>
+    <tr><td><b>运行时换模型</b></td>
+      <td class="n">构造期 init</td><td class="n">✗</td><td class="n">✗</td><td class="y">registerProvider</td><td class="part">Settings 单例</td><td class="star">capability 每步换</td><td class="star">每请求 waterfall 路由<br>+凭证热轮换</td><td class="star">fallback 链原地换手<br>重放同 turn</td><td class="y">set_model 热切换</td><td class="part">配置期 provider</td></tr>
+    <tr><td><b>长期记忆</b></td>
+      <td class="y">Store/虚拟FS 自建</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="part">skill 注册表（显式）</td><td class="star">学习循环 fork 自审<br>生成技能+治理</td><td class="part">文件约定 auto memory</td><td class="star">后台记忆流水线<br>提取→脱敏→回注</td></tr>
+  </table>
+  <div class="foot">判读：单列竖读 = 一家的完整画像；单行横读 = 这个问题业界的全部答案。黄格是最值得抄进自研的设计。</div>
+</section>
+
+<!-- ═══════════ S6 状态与上下文 ═══════════ -->
+<section class="slide" id="s6" data-h="980">
+  <div class="snum">06 / 08</div>
+  <h2>差异性 ③：持久化四形态 × 压缩五时机</h2>
+  <div class="sub">断点续跑能不能跨进程、分叉要不要复制、什么时候触发压缩 —— 代码层全是不同的赌注</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card" style="border-left:4px solid #38bdf8"><b>形态 1 · 快照派</b> <span class="c-da">LangGraph checkpointer</span>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:1.7">每个 superstep 把<b>全量图状态</b>序列化落盘，按 thread_id 存档槽恢复。最强恢复语义（可时间旅行），代价是快照体积与写入频率。</div></div>
+    <div class="card" style="border-left:4px solid #60a5fa"><b>形态 2 · 事件日志派</b> <span class="c-dsh">dsh · Codex · CASDK</span>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:1.7">append-only JSONL 是唯一真相，模型历史只是投影/派生。dsh 加 SHA-256 事件契约 + v2→v3 迁移样例；Codex fork 复制历史记 forked_from_ordinal；CASDK 闭源写盘只存<b>对话不存文件系统</b>。</div></div>
+    <div class="card" style="border-left:4px solid #a78bfa"><b>形态 3 · 树派</b> <span class="c-pi">Pi</span>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:1.7">会话是 JSONL 树（id/parentId），<b>分支 = 改 leaf 指针，零复制</b>；弃支由 LLM 生成 branch_summary 带进新分支 —— 最省存储的分叉设计。</div></div>
+    <div class="card" style="border-left:4px solid #f59e0b"><b>形态 4 · 数据库派</b> <span class="c-her">Hermes</span>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:1.7">SQLite state.db（WAL+FTS5 全文检索，36 个加固模块），<b>persist-before-execute 不变量</b>：副作用执行前先落库；/undo /retry 回退到用户轮。</div></div>
+  </div>
+  <div class="card" style="margin-top:14px;padding:16px">
+    <div style="font-weight:700;margin-bottom:10px">压缩触发时机横向对比（什么时候意识到“上下文快满了”）</div>
+    <table>
+      <tr><th style="width:150px">时机</th><th>做法</th><th style="width:220px">代表</th></tr>
+      <tr><td><b>每轮调用前预检</b></td><td>API 调用前测压力，超阈先压，再进循环</td><td class="c-her">Hermes turn_preflight.py</td></tr>
+      <tr><td><b>turn 中途兜底</b></td><td>采样中途超窗 → 现场压缩 → 重试一次</td><td class="c-cdx">Codex turn.rs:777</td></tr>
+      <tr><td><b>水位阈值</b></td><td>0.8×窗口触发（dsh）／ contextWindow-16384（Pi）</td><td class="c-dsh">dsh config.ts:20 · Pi</td></tr>
+      <tr><td><b>闭源黑盒</b></td><td>自动摘要，只外泄一条 compact_boundary 消息</td><td class="c-cas">CASDK</td></tr>
+      <tr><td><b>没有压缩</b></td><td>只有截断 / 渐进披露 / 自己造 —— <b>从0实现的最大缺口</b></td><td class="c-smo">Smolagents 2万字符 · LangGraph ✗</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════ S7 安全·记忆·网关 ═══════════ -->
+<section class="slide" id="s7" data-h="1060">
+  <div class="snum">07 / 08</div>
+  <h2>差异性 ④：安全 · 记忆 · 网关三模块</h2>
+  <div class="sub">用户最常问的三件事 —— 三家的答案几乎互不相同</div>
+  <div class="grid3">
+    <div class="card">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">🔒 安全：几层防线？</div>
+      <div style="font-size:13px;line-height:1.95">
+        <div style="border-left:3px solid #475569;padding-left:10px;margin-bottom:8px"><b>纯应用层审批</b><br><span class="muted">LangGraph interrupt() · OpenAI SDK Interruption · PydanticAI 审批当输出</span></div>
+        <div style="border-left:3px solid #fbbf24;padding-left:10px;margin-bottom:8px"><b>应用 + OS 双链</b><br><span class="muted"><b class="c-cdx">Codex</b>：四态审批 + execpolicy 可改写命令 + Seatbelt/Landlock/bwrap/Windows<br><b class="c-cas">CASDK</b>：六 permission mode + canUseTool + bash 沙箱</span></div>
+        <div style="border-left:3px solid #f87171;padding-left:10px;margin-bottom:8px"><b>自认“只是启发式”</b><br><span class="muted">Hermes「唯一边界是 OS」· dsh「未经审计」</span></div>
+        <div style="border-left:3px solid #34d399;padding-left:10px"><b>整个外包</b><br><span class="muted">Pi：无审批无权限 → 容器化</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">🧠 记忆：自动沉淀还是自己攒？</div>
+      <div style="font-size:13px;line-height:1.95">
+        <div style="border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:8px"><b class="c-her">Hermes · 学习循环</b><br><span class="muted">每轮后 <b>fork 继承父 runtime 的影子代理</b>回放会话自审“存什么 skill/memory”，写直入存储；技能带用量遥测 + 生命周期 + 审计账本可回滚</span></div>
+        <div style="border-left:3px solid #94a3b8;padding-left:10px;margin-bottom:8px"><b class="c-cdx">Codex · 后台流水线</b><br><span class="muted">启动期认领近线 rollout → 模型提取结构化记忆 → 脱敏回存 → 下轮 developer-instruction 回注（无向量检索）</span></div>
+        <div style="border-left:3px solid #d97757;padding-left:10px;margin-bottom:8px"><b class="c-cas">CASDK · 文件约定</b><br><span class="muted">CLAUDE.md + auto memory 目录（索引前 200 行开机注入）；无编程式记忆 API</span></div>
+        <div style="border-left:3px solid #38bdf8;padding-left:10px;margin-bottom:8px"><b class="c-da">deepagents · 原语自建</b><br><span class="muted">虚拟 FS + Store 给你仓库，schema 自己设计</span></div>
+        <div style="border-left:3px solid #475569;padding-left:10px"><b class="muted">Pi / dsh · 无</b><br><span class="muted">Pi 零；dsh 只有显式 skill 注册表（三源合并）</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">🌐 网关：绑死还是中立？</div>
+      <div style="font-size:13px;line-height:1.95">
+        <div style="border-left:3px solid #60a5fa;padding-left:10px;margin-bottom:8px"><b class="c-dsh">dsh · 最开放</b><br><span class="muted">ctx.llm 中立词表 + 适配器插件；llm-pi-ai 路由多供应商/网关/OAuth；凭证键名引用 + <b>热轮换不重启</b>；不绑 DeepSeek</span></div>
+        <div style="border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:8px"><b class="c-her">Hermes · 最实用</b><br><span class="muted">内部统一 OpenAI 形状（adapter 入口归一）；<b>fallback 链原地换手重放同 turn</b>；侧任务 402 自动掉链；凭据兜底借 Claude Code</span></div>
+        <div style="border-left:3px solid #38bdf8;padding-left:10px;margin-bottom:8px"><b class="c-da">LangGraph · 构造期中立</b><br><span class="muted">init_chat_model 600+，但 run 中不换</span></div>
+        <div style="border-left:3px solid #d97757;padding-left:10px;margin-bottom:8px"><b class="c-cas">CASDK · 绑协议</b><br><span class="muted">协议绑 Claude；换供应商只给 env（BASE_URL/Bedrock/Vertex）</span></div>
+        <div style="border-left:3px solid #94a3b8;padding-left:10px"><b class="c-cdx">Codex · 最激进</b><br><span class="muted">Chat Completions 支持<b>已物理删除</b>，钉死 Responses；API key vs ChatGPT 订阅双通道</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S8 命名对照 + 边界 ═══════════ -->
+<section class="slide" id="s8" data-h="1140">
+  <div class="snum">08 / 08</div>
+  <h2>命名对照（同一件事，六套词）× 能力边界（各自刻意不做）</h2>
+  <div class="sub">左表防“术语晕”：跨家读文档时先对暗号；右栏防“踩坑”：边界即设计决策，藏在删除项里</div>
+  <div style="display:grid;grid-template-columns:8fr 5fr;gap:18px">
+    <table>
+      <tr><th>概念</th><th class="b-da">deepagents</th><th class="b-dsh">dsh</th><th class="b-her">Hermes</th><th class="b-cas">CASDK</th><th class="b-cdx">Codex</th><th class="b-pi">Pi</th></tr>
+      <tr><td><b>子代理</b></td><td>task 工具</td><td>tool-subagent</td><td>delegate_task</td><td>subagents</td><td>spawn_agent</td><td class="n">无</td></tr>
+      <tr><td><b>计划重述</b></td><td>TodoListMiddleware</td><td>tool-todo / goal</td><td>todo_list 工具</td><td>TodoWrite（闭源）</td><td>update_plan</td><td class="n">无</td></tr>
+      <tr><td><b>压缩</b></td><td class="n">无内置</td><td>compaction 插件</td><td>ContextCompressor</td><td class="part">闭源 compact</td><td>auto-compact</td><td>compaction</td></tr>
+      <tr><td><b>审批</b></td><td>interrupt()+resume</td><td>ApprovalService</td><td>approval 门</td><td>canUseTool+mode</td><td>AskForApproval</td><td class="n">无</td></tr>
+      <tr><td><b>会话</b></td><td>thread+checkpointer</td><td>事件日志 JSONL v3</td><td>state.db SQLite</td><td>~/.claude jsonl</td><td>rollout JSONL</td><td>JSONL 树</td></tr>
+      <tr><td><b>模型路由</b></td><td>init_chat_model</td><td>ctx.llm+适配器</td><td>fallback_chain</td><td class="n">env 开关</td><td>AuthMode 双通道</td><td>pi-ai 目录</td></tr>
+      <tr><td><b>扩展面</b></td><td>middleware wrap_*</td><td>Cordis waterfall</td><td>registry+hooks</td><td>hooks+MCP</td><td>编译进核</td><td>9 个回调</td></tr>
+    </table>
+    <div>
+      <div class="card" style="margin-bottom:10px;padding:12px 14px"><b style="color:#f87171">✗ 刻意不做清单</b>
+        <div class="muted" style="font-size:12.5px;line-height:1.85;margin-top:6px">
+        <b class="c-oai">OpenAI SDK</b>：无沙箱无 OS 隔离<br>
+        <b class="c-smo">Smolagents</b>：自认解释器非安全沙箱<br>
+        <b class="c-pi">Pi</b>：无审批/权限/MCP/子代理<br>
+        <b class="c-pyd">Pydantic AI</b>：不内置会话存储<br>
+        <b class="c-llm">LlamaIndex</b>：无自动 checkpoint<br>
+        <b class="c-dsh">dsh</b>：无长期记忆、沙箱非隔离<br>
+        <b class="c-her">Hermes</b>：不做 containment<br>
+        <b class="c-cas">CASDK</b>：循环/压缩/权限不可编程<br>
+        <b class="c-cdx">Codex</b>：不做多协议、子代理审批硬关<br>
+        <b class="c-da">deepagents</b>：无自动压缩、无 OS 沙箱</div></div>
+      <div class="card" style="padding:12px 14px"><b style="color:#fbbf24">★ 抄作业清单（自研最值得偷的 4 个设计）</b>
+        <div class="muted" style="font-size:12.5px;line-height:1.85;margin-top:6px">
+        ① dsh 的「压缩调用 = 上次请求真前缀」→ KV cache 白嫖<br>
+        ② Codex 的「审批 + OS 沙箱双链」→ 权限的执行兜底<br>
+        ③ Hermes 的「fork 影子代理事后复盘」→ 经验自动沉淀<br>
+        ④ Pi 的「会话树 leaf 指针分叉」→ 零复制分支实验</div></div>
+    </div>
+  </div>
+  <div class="foot">完整证据：03-sdk-research/notes/sdk-*.md ×10 ＋ sdk-对比总表.md（每条结论附 file:line）</div>
+</section>
+
+</body>
+</html>

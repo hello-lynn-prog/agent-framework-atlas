@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Agent SDK 主循环 · 真实代码逐行对比</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0b1220; font-family:"Microsoft YaHei","PingFang SC",sans-serif; color:#e2e8f0; }
+  .slide { width:1600px; margin:24px auto; background:linear-gradient(160deg,#0f172a,#111c33);
+           border:1px solid #1e293b; border-radius:16px; padding:34px 44px; position:relative; overflow:hidden; }
+  .slide::before { content:""; position:absolute; top:0; left:0; right:0; height:4px;
+                   background:linear-gradient(90deg,#fbbf24,#38bdf8,#a78bfa,#d97757); }
+  .snum { position:absolute; top:20px; right:30px; font-size:13px; color:#475569; letter-spacing:2px; }
+  h2 { font-size:25px; margin-bottom:4px; } .sub { color:#94a3b8; font-size:14.5px; margin-bottom:18px; }
+  .card { background:#16213a; border:1px solid #24314f; border-radius:12px; padding:14px 16px; }
+  .muted { color:#64748b; } .mono { font-family:Consolas,monospace; }
+  table { border-collapse:collapse; width:100%; } th,td { border:1px solid #24314f; padding:5px 7px; font-size:11.5px; text-align:left; }
+  th { background:#1b2742; }
+  /* 代码面板 */
+  .panel { background:#0d1526; border:1px solid #24314f; border-radius:12px; overflow:hidden; }
+  .phead { padding:8px 14px; background:#1b2742; font-size:14px; font-weight:700; display:flex; gap:10px; align-items:center; }
+  .lang { font-size:11px; padding:1px 8px; border-radius:99px; background:#0b1220; color:#94a3b8; font-family:Consolas,monospace; }
+  .pfile { font-size:11px; color:#64748b; font-family:Consolas,monospace; margin-left:auto; }
+  pre.code { padding:12px 14px; font-family:Consolas,"Courier New",monospace; font-size:12.3px; line-height:1.62;
+             color:#cbd5e1; overflow:hidden; white-space:pre; }
+  .sk { background:rgba(251,191,36,.16); color:#fde68a; display:inline-block; width:100%; border-radius:3px; } /* 共性骨架行 */
+  .an { color:#5b7aa9; font-style:italic; }   /* ◁ 我们的批注 */
+  .el { color:#475569; }                       /* 省略号 */
+  .kw { color:#c792ea; } .st { color:#a5d6a7; } .fn { color:#82aaff; } .num { color:#f78c6c; }
+  .pfoot { padding:7px 14px; border-top:1px dashed #24314f; font-size:12.5px; color:#fbbf24; background:rgba(251,191,36,.04); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+  .legend { display:flex; gap:22px; font-size:12.5px; margin-bottom:12px; }
+  .chip { display:inline-block; width:26px; height:13px; border-radius:3px; vertical-align:-2px; margin-right:6px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ S1 骨架映射 ═══════ -->
+<section class="slide" id="s1" data-h="880">
+  <div class="snum">1 / 4</div>
+  <h2>万象归一：所有主循环都在实现这 6 行</h2>
+  <div class="sub">下面是全世界每个 agent harness 都在写的那份"母版"——10 家源码里都能逐行找到对应实现（右侧坐标即证据）</div>
+  <div class="grid2">
+    <div class="panel" style="height:fit-content">
+      <div class="phead">母版伪代码<span class="lang">pseudo</span><span class="pfile">出现的次数：10 / 10 家</span></div>
+      <pre class="code"><span class="kw">while</span> <span class="kw">True</span>:
+<span class="sk">    ctx    = 组装上下文(system + 历史 + 工具schema)</span>      <span class="an">◁ ① 组装</span>
+<span class="sk">    resp   = LLM.<span class="fn">采样</span>(ctx)                              </span><span class="an">◁ ② 采样</span>
+<span class="sk">    calls  = resp 里挑出工具调用</span>                          <span class="an">◁ ③ 分支</span>
+    <span class="kw">if</span> <span class="kw">not</span> calls:
+        <span class="kw">return</span> resp          <span class="an">◁ ⑥ 终止：模型不再要工具 = 干完活</span>
+<span class="sk">    results = <span class="fn">执行</span>工具(calls)  <span class="an">◁ ④ 执行（并行/沙箱/审批都在这层长出来）</span></span>
+<span class="sk">    历史.<span class="fn">落账</span>(calls + results)                            </span><span class="an">◁ ⑤ 落历史</span></pre>
+    </div>
+    <div class="card">
+      <div style="font-size:14.5px;font-weight:700;margin-bottom:8px">10 家 × 6 步实现坐标（★=该步的独特玩法）</div>
+      <table style="table-layout:fixed">
+        <tr><th style="width:64px">步骤</th><th>代表实现（file:line）</th></tr>
+        <tr><td><b>① 组装</b></td><td class="mono">dsh preStep waterfall agent.ts:267 ｜ Pi prepareRequest agent-loop.ts:218 ｜ Hermes assemble_api_request phase ｜ Codex capture_step_context turn.rs:462 ｜ deepagents wrap_model_call 中间件</td></tr>
+        <tr><td><b>② 采样</b></td><td class="mono">dsh llm.stream(request) agent.ts:436 ｜ Pi streamAssistantResponse :241 ｜ Hermes _run_api_retry_loop（内嵌重试环）:1654 ｜ CASDK <b>整步外包给闭源 CLI</b></td></tr>
+        <tr><td><b>③ 分支</b></td><td class="mono">dsh filter 'tool-call' agent.ts:532 ｜ Pi filter 'toolCall' :258 ｜ Smolagents parse_code_blobs（代码当动作）★ ｜ Hermes assistant_message.tool_calls :1671</td></tr>
+        <tr><td><b>④ 执行</b></td><td class="mono">dsh executeToolCalls（并行池10+barrier）:534 ｜ Pi executeToolCalls :269 ｜ Codex ToolCallRuntime（可并行+审批）★ ｜ Smolagents AST 解释器 ★</td></tr>
+        <tr><td><b>⑤ 落历史</b></td><td class="mono">dsh session.append('assistant/message') :522 ｜ Pi context.messages.push :274 ｜ Hermes memory/steps 落 SQLite ｜ Codex rollout JSONL 追加</td></tr>
+        <tr><td><b>⑥ 终止</b></td><td class="mono">共同点：模型不再要工具即完成。★ 仅研究系设硬上限（OpenAI 10 / LangGraph 25 / PydanticAI 50 / LlamaIndex 20），产品系 5 家全靠模型自终止</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px;padding:10px 16px;font-size:13.5px">
+    <b style="color:#fbbf24">怎么读后三页：</b>7 个面板全部摘自仓库真实源码（删节处用 <span class="el">┆ 省略 ┆</span> 标注），
+    <span class="chip" style="background:rgba(251,191,36,.16);border:1px solid #fbbf24"></span>高亮行 = 上面母版的对应实现——<b>把七家的高亮行连起来读，是同一份代码</b>；没高亮的行就是各家的差异所在。
+  </div>
+</section>
+
+<!-- ═══════ S2 真码对比 · 上 ═══════ -->
+<section class="slide" id="s2" data-h="1210">
+  <div class="snum">2 / 4</div>
+  <h2>主循环真码 · 第一组：单 while / CodeAct / 回调核 / 插件总线</h2>
+  <div class="sub">四个面板 = 四种写法。注意看同色高亮行怎么在各家"换装"出现</div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="phead"><span class="c-oai" style="color:#34d399">OpenAI Agents SDK</span><span class="lang">python</span><span class="pfile">src/agents/run.py:987,1254 · run_internal/run_steps.py:162</span></div>
+      <pre class="code"><span class="kw">while</span> <span class="kw">True</span>:                                        <span class="an">◁ 整个 Runner 就一条 while</span>
+<span class="el">    ┆ 护栏/沙箱准备（省略 ~60 行）┆</span>
+    turn_result = <span class="kw">await</span> <span class="fn">_run_single_turn</span>(...)
+<span class="sk">    <span class="kw">if</span> isinstance(turn_result.next_step, NextStepRunAgain):</span>
+<span class="sk">        <span class="kw">continue</span>                                   </span><span class="an">◁ ③④ 没干完 → 下一轮</span>
+    <span class="kw">if</span> isinstance(turn_result.next_step, NextStepFinalOutput):
+        <span class="kw">return</span> _finalize_result(result)            <span class="an">◁ ⑥ 终态</span>
+    <span class="kw">elif</span> isinstance(turn_result.next_step, NextStepHandoff):
+        current_agent = ...                        <span class="an">◁ ★换手：只换循环变量，不退出循环</span>
+<span class="el">    ┆ NextStepInterruption → 审批挂起 ┆</span>
+<span class="an">◁ 四态定义在 run_internal/run_steps.py:162-177；默认 10 turns 超限抛 MaxTurnsExceeded</span></pre>
+      <div class="pfoot">差异点：next_step 四态枚举 + handoff 只换 current_agent + 唯一自带 turn 硬上限（10）</div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span style="color:#fbbf24">Smolagents</span><span class="lang">python</span><span class="pfile">src/smolagents/agents.py:545-611</span></div>
+      <pre class="code"><span class="sk"><span class="kw">while</span> <span class="kw">not</span> returned_final_answer <span class="kw">and</span> <span class="kw">self</span>.step_number &lt;= max_steps:</span>
+    <span class="kw">if</span> <span class="kw">self</span>.interrupt_switch: <span class="kw">raise</span> AgentError(...)
+<span class="sk">    <span class="kw">if</span> <span class="kw">self</span>.planning_interval <span class="kw">is</span> <span class="kw">not</span> <span class="kw">None</span> <span class="kw">and</span> (...):</span>
+        planning_step = ...; memory.steps.append(planning_step)  <span class="an">◁ ★周期重规划</span>
+    action_step = ActionStep(step_number=<span class="kw">self</span>.step_number, ...)
+<span class="sk">    <span class="kw">for</span> output <span class="kw">in</span> <span class="kw">self</span>._<span class="fn">step_stream</span>(action_step):   </span><span class="an">◁ ②③④ CodeAct：LLM 写代码→AST 解释器执行</span>
+        <span class="kw">yield</span> output
+        <span class="kw">if</span> isinstance(output, ActionOutput) <span class="kw">and</span> output.is_final_answer:
+<span class="sk">            returned_final_answer = <span class="kw">True</span>           </span><span class="an">◁ ⑥ 唯一出口（子代理可被代码编排）</span>
+    <span class="kw">finally</span>:
+<span class="sk">        memory.steps.append(action_step); step_number += <span class="num">1</span>   </span><span class="an">◁ ⑤ 全留痕可 replay</span></pre>
+      <div class="pfoot">差异点：动作=一段 Python 代码（CodeAct）；解释器变量跨步存活当"文件系统"；每步重建全历史</div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span style="color:#a78bfa">Pi</span><span class="lang">typescript</span><span class="pfile">packages/agent/src/agent-loop.ts:178-317</span></div>
+      <pre class="code"><span class="kw">while</span> (<span class="kw">true</span>) {                                   <span class="an">◁ 外环：follow-up 唤醒</span>
+  <span class="kw">let</span> hasMoreToolCalls = <span class="kw">true</span>;
+<span class="sk">  <span class="kw">while</span> (hasMoreToolCalls || pendingMessages.length &gt; <span class="num">0</span>) {</span>  <span class="an">◁ 内环</span>
+<span class="sk">    <span class="kw">const</span> requestUpdate = <span class="kw">await</span> config.prepareRequest?.(...)   </span><span class="an">◁ ① 可改模型/上下文</span>
+<span class="sk">    <span class="kw">const</span> message = <span class="kw">await</span> <span class="fn">streamAssistantResponse</span>(...)        </span><span class="an">◁ ②</span>
+    <span class="kw">const</span> toolCalls = message.content.filter(<span class="st">"toolCall"</span>)      <span class="an">◁ ③</span>
+    hasMoreToolCalls = <span class="kw">false</span>;
+    <span class="kw">if</span> (toolCalls.length &gt; <span class="num">0</span>) {
+<span class="sk">      <span class="kw">const</span> batch = <span class="kw">await</span> <span class="fn">executeToolCalls</span>(...);              </span><span class="an">◁ ④</span>
+      hasMoreToolCalls = !batch.terminate;
+<span class="sk">      <span class="kw">for</span> (<span class="kw">const</span> r <span class="kw">of</span> toolResults) currentContext.messages.push(r);</span><span class="an">◁ ⑤</span>
+    }
+    <span class="kw">const</span> decision = <span class="kw">await</span> config.finishTurn?.(lastCompletedTurn, signal);
+<span class="sk">    <span class="kw">if</span> (decision?.action === <span class="st">"end"</span>) <span class="kw">return</span>;                </span><span class="an">◁ ⑥ 回调可强制收工</span>
+    pendingMessages = <span class="kw">await</span> config.getSteeringMessages?.();   <span class="an">◁ ★steering 轮间插队</span>
+  }
+  <span class="el">┆ follow-up 检查 → 无消息 break ┆</span>
+}</pre>
+      <div class="pfoot">差异点：整条循环 140 行读完，扩展只靠 9 个回调（prepareNextTurn/finishTurn/steering…），无中间件无插件</div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span style="color:#60a5fa">DeepSeek Harness</span><span class="lang">typescript</span><span class="pfile">packages/core/agent-loop/src/agent.ts:254,296,398,532</span></div>
+      <pre class="code"><span class="kw">private async</span> <span class="fn">kick</span>(): <span class="kw">Promise</span>&lt;<span class="kw">void</span>&gt; {
+  <span class="kw">try</span> { <span class="kw">while</span> (<span class="kw">await</span> <span class="kw">this</span>.<span class="fn">turn</span>()) {} }            <span class="an">◁ 外层 driver，无 turn 上限</span>
+}
+<span class="kw">private async</span> <span class="fn">turn</span>(): <span class="kw">Promise</span>&lt;<span class="kw">boolean</span>&gt; {
+  <span class="kw">this</span>.session.<span class="fn">append</span>(<span class="st">'turn/start'</span>, { turn })     <span class="an">◁ ★一切先落事件日志</span>
+  <span class="kw">while</span> (<span class="kw">true</span>) {
+<span class="sk">    <span class="kw">const</span> decision = <span class="kw">await</span> <span class="kw">this</span>.<span class="fn">preStep</span>(target, ...)  </span><span class="an">◁ ① pre-step 是可拦截 waterfall</span>
+<span class="sk">    <span class="kw">const</span> stepEnd = <span class="kw">await</span> <span class="kw">this</span>.<span class="fn">step</span>(decision)</span>
+    <span class="kw">if</span> (turnEnds &amp;&amp; <span class="kw">this</span>.inbox.nextStep.length === <span class="num">0</span>) <span class="kw">break</span>
+    target = <span class="st">'next-step'</span>                          <span class="an">◁ steer/inject 下 step 插队</span>
+  }
+  <span class="kw">this</span>.session.<span class="fn">append</span>(<span class="st">'turn/end'</span>, { turn, reason: turnEnds })
+  <span class="kw">if</span> (!<span class="kw">this</span>.inbox.hasPending) <span class="kw">return</span> <span class="kw">false</span>        <span class="an">◁ ⑥ 收件箱空才真退出</span>
+}
+<span class="kw">private async</span> <span class="fn">step</span>(decision) {                     <span class="an">◁ :398</span>
+<span class="sk">  <span class="kw">const</span> stream = preparedCall?.<span class="fn">stream</span>(request) ?? llm.<span class="fn">stream</span>(request)  </span><span class="an">◁ ②</span>
+  <span class="el">┆ 逐 chunk 落账 assistant/message ┆</span>
+<span class="sk">  <span class="kw">const</span> toolCalls = message.content.filter(b =&gt; b.type === <span class="st">'tool-call'</span>)</span><span class="an">◁ ③</span>
+<span class="sk">  <span class="kw">if</span> (toolCalls.length === <span class="num">0</span>) <span class="kw">return</span> { kind: <span class="st">'completed'</span> }   </span><span class="an">◁ ⑥ 模型自终止</span>
+<span class="sk">  <span class="kw">await</span> <span class="fn">executeToolCalls</span>(...)                    </span><span class="an">◁ ④ 并行池 10 + barrier</span>
+}</pre>
+      <div class="pfoot">差异点：session.append 贯穿每一行（事件溯源）；pre-step/request/error 全是插件可拦的 Cordis waterfall</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ S3 真码对比 · 下 ═══════ -->
+<section class="slide" id="s3" data-h="1080">
+  <div class="snum">3 / 4</div>
+  <h2>主循环真码 · 第二组：状态机 / 消息泵 / 双环编译</h2>
+  <div class="sub">这三家把"循环"藏得更深——状态机摊开成 phase、消息泵只管路由、编译成两层 Rust loop</div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="phead"><span style="color:#f59e0b">Hermes</span><span class="lang">python</span><span class="pfile">agent/conversation_loop.py:1636-1682</span></div>
+      <pre class="code"><span class="sk"><span class="kw">while</span> (s.api_call_count &lt; agent.max_iterations</span>
+<span class="sk">       <span class="kw">and</span> agent.iteration_budget.remaining &gt; <span class="num">0</span>) ...:</span>  <span class="an">◁ 默认 sys.maxsize=不设限</span>
+    <span class="kw">if</span> _run_phase(begin_iteration, agent, s).action == <span class="st">"break"</span>: <span class="kw">break</span>
+    _run_phase(prepare_iteration, agent, s)
+<span class="sk">    _run_phase(assemble_api_request, agent, s)          </span><span class="an">◁ ① 每个 phase 是一个函数</span>
+    _pg = _run_phase(run_preflight_gate, agent, s)      <span class="an">◁ ★压缩预检门（每轮先量水位）</span>
+    <span class="kw">if</span> _pg.action == <span class="st">"return"</span>:  <span class="kw">return</span> _pg.result
+    <span class="kw">if</span> _pg.action == <span class="st">"break"</span>:    <span class="kw">break</span>
+<span class="sk">    early_result = _run_api_retry_loop(agent, s)        </span><span class="an">◁ ② 内层重试环（fallback 原地换手）</span>
+    _ri = _run_phase(normalize_model_response, agent, s)
+    _v = _run_phase(
+<span class="sk">        run_tool_round <span class="kw">if</span> s.assistant_message.tool_calls</span>
+<span class="sk">        <span class="kw">else</span> finish_text_response, agent, s)            </span><span class="an">◁ ③④ 或 ⑥ 的分岔点</span>
+    <span class="kw">if</span> _v.action == <span class="st">"return"</span>:  <span class="kw">return</span> _v.result          <span class="an">◁ 三值 verdict 驱动流转</span>
+<span class="el">    ┆ handle_outer_loop_error 兜底 8 次 ┆</span></pre>
+      <div class="pfoot">差异点：循环体 = phase 函数队列，_run_phase 按签名反射注入 ~40 个状态字段；verdict 三值 return/break/continue</div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span style="color:#d97757">Claude Agent SDK</span><span class="lang">python</span><span class="pfile">_internal/query.py:391-506（包装层只是消息泵）</span></div>
+      <pre class="code"><span class="an">◁ ①②③④ 全在闭源 CLI 里 —— SDK 侧能看到的是 stdout 消息流：</span>
+<span class="sk"><span class="kw">async for</span> message <span class="kw">in</span> <span class="kw">self</span>.transport.<span class="fn">read_messages</span>():</span>
+    <span class="kw">if</span> msg_type == <span class="st">"control_request"</span>:              <span class="an">◁ CLI→SDK 回调：审批/hook/MCP</span>
+        <span class="kw">self</span>._spawn_control_request_handler(request); <span class="kw">continue</span>
+    <span class="kw">elif</span> msg_type == <span class="st">"transcript_mirror"</span>:          <span class="an">◁ 会话镜像帧 → SessionStore</span>
+        <span class="kw">self</span>._transcript_mirror_batcher.enqueue(...); <span class="kw">continue</span>
+    <span class="kw">if</span> msg_type == <span class="st">"result"</span>:
+        <span class="kw">self</span>._turn_in_progress = <span class="kw">False</span>
+        <span class="an">◁ ★result 结束的是 turn，不一定是 run——后台子代理还会唤醒续跑：</span>
+        <span class="kw">if</span> (<span class="kw">self</span>._session_state <span class="kw">in</span> (<span class="kw">None</span>, <span class="st">"idle"</span>) <span class="kw">or</span> <span class="kw">not</span> <span class="kw">self</span>._has_bidirectional_needs()):
+            <span class="kw">self</span>._maybe_end_run()                  <span class="an">◁ ⑥ 等 CLI 报 idle 才敢收工</span>
+        <span class="kw">elif</span> <span class="kw">self</span>._session_state != <span class="st">"requires_action"</span>:
+            <span class="kw">self</span>._arm_run_end_ceiling()            <span class="an">◁ 600s 兜底天花板</span>
+    <span class="kw">await</span> <span class="kw">self</span>._message_send.send(message)</pre>
+      <div class="pfoot">差异点：循环是黑盒，包装层唯一复杂的逻辑就是"什么时候能关 stdin"（idle 帧 + 任务台账 + ceiling 三重判定）</div>
+    </div>
+    <div class="panel" style="grid-column:1/3">
+      <div class="phead"><span style="color:#94a3b8">Codex</span><span class="lang">rust（简写）</span><span class="pfile">core/src/tasks/regular.rs:104 · core/src/session/turn.rs:426</span></div>
+      <pre class="code"><span class="an">▷ 外环 RegularTask::run —— 只在有 steering 插队输入时才续跑：</span>
+<span class="kw">loop</span> {                                             <span class="an">◁ regular.rs:104</span>
+<span class="sk">    <span class="kw">let</span> last = <span class="fn">run_turn</span>(sess, ctx, next_input, ...).<span class="kw">await</span>?;   </span><span class="an">◁ 内环整体是一行调用</span>
+    <span class="kw">if</span> ctx.terminal_error.<span class="fn">lock</span>().<span class="kw">await</span>.is_some() { <span class="kw">return</span> <span class="kw">Ok</span>(last); }
+    <span class="kw">if</span> !sess.input_queue.<span class="fn">has_pending_input</span>(&amp;sess.active_turn).<span class="kw">await</span> {
+        <span class="kw">return</span> <span class="kw">Ok</span>(last);                           <span class="an">◁ ⑥ 无插队输入 → 收工（无 max_turns）</span>
+    }
+    next_input = ...;                              <span class="an">◁ 带着插队输入再来一 turn</span>
+}
+<span class="an">▷ 内环 run_turn —— 采样→工具→follow_up：</span>
+<span class="kw">loop</span> {                                             <span class="an">◁ turn.rs:426</span>
+<span class="sk">    <span class="kw">let</span> pending_input = sess.input_queue.<span class="fn">get_pending_input</span>(...).<span class="kw">await</span>.<span class="num">0</span>;</span><span class="an">◁ steering 邮箱→入历史</span>
+<span class="sk">    <span class="kw">let</span> step_context = ...capture_step_context(...).<span class="kw">await</span>?;   </span><span class="an">◁ ① 工具目录/MCP/环境快照</span>
+<span class="sk">    <span class="kw">let</span> response = 采样(clone_history().for_prompt + 断线退避重试);        </span><span class="an">◁ ②</span>
+<span class="sk">    执行 ResponseItem 工具（ToolCallRuntime，可并行，审批+OS沙箱双链）;   </span><span class="an">◁ ④</span>
+<span class="sk">    <span class="kw">if</span> !needs_follow_up { <span class="kw">break</span> }                 </span><span class="an">◁ ⑥ 模型自终止；超窗→现场 compact 重试一次</span>
+}</pre>
+      <div class="pfoot">差异点：两层 loop 分工明确——内环管"一轮对话"，外环管"人往里插话"；steering 是邮箱不是异常</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ S4 共性/差异收束 ═══════ -->
+<section class="slide" id="s4" data-h="900">
+  <div class="snum">4 / 4</div>
+  <h2>收束：高亮行连成同一份代码，差异各自长在哪</h2>
+  <div class="sub">①组装 ②采样 ③分支 ④执行 ⑤落历史 ⑥终止 —— 六步人人都有；差异全在"长在哪一层"和"多长出来的器官"</div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="phead">共性收束<span class="lang">读法</span></div>
+      <pre class="code"><span class="an">把 7 个面板的高亮行抽掉语言外衣，逐行对齐后：</span>
+
+  ① 组装   7/7 家都有，长成了 4 种形态：
+           普通拼串 / waterfall 可拦截 / phase 函数 / 闭源握手
+  ② 采样   7/7 都有；Hermes 套重试环、dsh 逐 chunk 落账、
+           CASDK 整步不可见
+  ③ 分支   7/7 都有；唯一分岔=Smolagents 挑的是"代码块"
+  ④ 执行   7/7 都有；审批/沙箱/并行池全在这层长出来
+  ⑤ 落历史 7/7 都有；<span class="st">推内存数组(Pi) vs append 事件日志(dsh/Codex)
+           vs 落 SQLite(Hermes) vs 闭源(CASDK)</span>
+  ⑥ 终止   7/7 相同：<span class="st">模型不再要工具 = 完成</span>；
+           仅研究系额外加硬上限
+
+<span class="an">结论：没有一家发明了新循环——他们发明的是循环的接口。</span></pre>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">事件日志"真容"对比（⑤ 落历史的三种长相）</div>
+        <pre class="code" style="font-size:11.8px"><span class="an">dsh session.v3.jsonl（snapshots/acp/cancel/，逐字）：</span>
+{<span class="st">"type":"turn/start"</span>,<span class="st">"data"</span>:{<span class="st">"turn"</span>:<span class="num">1</span>}}
+{<span class="st">"type"</span>:<span class="st">"user/message"</span>,<span class="st">"data"</span>:{...,<span class="st">"surfaceOp"</span>:<span class="st">"append"</span>}}
+<span class="an">Codex rollout JSONL（history/src/lib.rs:350）：</span>
+{<span class="st">"timestamp"</span>:...,<span class="st">"ordinal"</span>:<span class="num">17</span>,<span class="st">"item"</span>:{<span class="st">"type"</span>:<span class="st">"response_item"</span>,...}}
+<span class="an">Pi 会话树条目：</span>
+{<span class="st">"id"</span>:...,<span class="st">"parentId"</span>:...,<span class="st">"type"</span>:<span class="st">"message"</span>,...}  <span class="an">◁ 分支=改 leaf 指针</span></pre>
+        <div class="muted" style="font-size:12.5px;margin-top:6px">4 家独立演化出同一形状：<b style="color:#e2e8f0">追加式 JSONL = 唯一真相，历史只是投影</b></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">三行结论</div>
+        <div style="font-size:13.5px;line-height:2">
+          <div><b style="color:#fbbf24">共性</b>：循环六步是行业公理，终止权集体交给模型（产品系无 turn 上限）</div>
+          <div><b style="color:#38bdf8">差异轴 1</b>：循环可编程度——waterfall 可拦(dsh) &gt; 回调(Pi) &gt; phase 写死(Hermes) &gt; 编译(Codex) &gt; 黑盒(CASDK)</div>
+          <div><b style="color:#a78bfa">差异轴 2</b>：落历史位置——推数组（进程内）→ append 日志（可恢复）→ 落库（可检索），一条进化链</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px;padding:10px 16px;font-size:13px" class="muted">
+    <span class="muted">源码坐标汇总：7 面板均摘自 03-sdk-research/harness-research/ 各仓库 ｜ 逐家完整八维拆解见 notes/sdk-*.md ｜ LangGraph/PydanticAI/LlamaIndex 的图式循环未入面板，见图谱页 03</span>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex Agent Loop 详解（源码行号版）</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1c2538; --line:#2c3a55;
+    --tx:#dbe4f3; --tx2:#8fa3c2; --accent:#5b9dff; --green:#3ecf8e; --orange:#f5a623;
+    --red:#ef6b73; --purple:#b48cff; --cyan:#4fd6e0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-size:14px;line-height:1.65}
+  .wrap{max-width:1280px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:26px;margin:0 0 4px}
+  h1 .em{color:var(--accent)}
+  .src{color:var(--tx2);font-size:13px;margin-bottom:28px}
+  .src code{color:var(--cyan)}
+  h2{font-size:18px;margin:36px 0 14px;color:var(--accent);border-left:4px solid var(--accent);padding-left:10px}
+
+  .cols{display:flex;gap:22px;align-items:flex-start}
+  .main{flex:1.45;min-width:0}
+  .side{flex:1;min-width:0;position:sticky;top:16px}
+
+  /* 流程节点 */
+  .node{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0}
+  .node .t{font-weight:600}
+  .node .d{color:var(--tx2);font-size:12.5px;margin-top:2px}
+  .node .ref{font-family:Consolas,monospace;font-size:11.5px;color:var(--cyan);background:#0d1524;border-radius:4px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+  .arrow{color:var(--accent);text-align:center;font-size:15px;line-height:1;margin:6px 0}
+  .arrow .lbl{font-size:11.5px;color:var(--tx2);vertical-align:middle;margin-left:6px}
+
+  .prep{border-left:3px solid var(--purple)}
+  .loopbox{border:2px dashed var(--accent);border-radius:14px;padding:16px 14px 14px;margin-top:8px;position:relative;background:rgba(91,157,255,.03)}
+  .loopbox>.tag{position:absolute;top:-13px;left:18px;background:var(--accent);color:#0b1220;font-weight:700;font-size:12px;border-radius:6px;padding:2px 10px}
+  .innerloop{border:2px dashed var(--cyan);border-radius:12px;padding:14px 12px 12px;margin:10px 0;position:relative;background:rgba(79,214,224,.03)}
+  .innerloop>.tag{position:absolute;top:-12px;left:16px;background:var(--cyan);color:#0b1220;font-weight:700;font-size:12px;border-radius:6px;padding:2px 10px}
+  .loopback{border:1px dashed var(--orange);color:var(--orange);border-radius:8px;padding:6px 10px;text-align:center;font-size:12.5px;margin-top:10px}
+
+  .branch{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .bcard{flex:1;min-width:200px;border-radius:10px;padding:10px 12px;border:1px solid var(--line);background:var(--panel2)}
+  .bcard .bt{font-weight:700;font-size:13px;margin-bottom:4px}
+  .bcard.compact{border-color:var(--orange)} .bcard.compact .bt{color:var(--orange)}
+  .bcard.stop{border-color:var(--green)} .bcard.stop .bt{color:var(--green)}
+  .bcard.next{border-color:var(--accent)} .bcard.next .bt{color:var(--accent)}
+  .bcard.err{border-color:var(--red)} .bcard.err .bt{color:var(--red)}
+  .bcard ul{margin:0;padding-left:16px;color:var(--tx2);font-size:12.5px}
+
+  .side .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .side h3{margin:0 0 8px;font-size:14.5px;color:var(--purple)}
+  .side ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--tx2)}
+  .side li{margin-bottom:6px}
+  .side b{color:var(--tx)}
+  code{font-family:Consolas,monospace;font-size:12px;color:var(--cyan);background:#0d1524;border-radius:3px;padding:0 4px}
+
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--accent);font-size:12.5px;user-select:none}
+  details .dd{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:6px;font-size:12.5px;color:var(--tx2)}
+  details .dd b{color:var(--tx)}
+  details .dd ol{margin:4px 0 0;padding-left:18px}
+  details .dd li{margin-bottom:4px}
+
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:8px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left}
+  th{background:var(--panel2);color:var(--accent);font-weight:600}
+  td{color:var(--tx2)}
+  td code{white-space:nowrap}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 4px;font-size:12px;color:var(--tx2)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Codex Agent Loop <span class="em">详细版</span></h1>
+  <div class="src">
+    依据源码实测：<code>codex-rs/core/src/session/turn.rs</code>（3212 行）· 主循环
+    <code>run_turn</code> 位于 <b>turn.rs:163</b> · 内层采样循环 <code>try_run_sampling_request</code> 位于 <b>turn.rs:2525</b> ·
+    工具运行时 <code>core/src/tools/parallel.rs:45</code> · 审批 <code>core/src/tools/approvals.rs:479</code><br>
+    画法说明：<span style="color:var(--purple)">紫色</span>=回合前的准备（只走一次），
+    <span style="color:var(--accent)">蓝色虚框</span>=外层 step 循环，
+    <span style="color:var(--cyan)">青色虚框</span>=内层采样循环，<span style="color:var(--orange)">橙色</span>=压缩，<span style="color:var(--green)">绿色</span>=收尾，<span style="color:var(--red)">红色</span>=出错退出。
+  </div>
+
+  <div class="cols">
+  <!-- ═══════════ 主流程 ═══════════ -->
+  <div class="main">
+    <div class="legend">
+      <span><i class="dot" style="background:var(--purple)"></i>回合准备（一次性）</span>
+      <span><i class="dot" style="background:var(--accent)"></i>外层循环</span>
+      <span><i class="dot" style="background:var(--cyan)"></i>内层循环</span>
+      <span><i class="dot" style="background:var(--orange)"></i>压缩</span>
+      <span><i class="dot" style="background:var(--green)"></i>收尾</span>
+      <span><i class="dot" style="background:var(--red)"></i>错误出口</span>
+    </div>
+
+    <div class="node prep">
+      <div class="t">0 · 用户提交输入 <span class="ref">壳 → Op → Session</span></div>
+      <div class="d">tui / exec / app-server 把用户消息包成 Op 送进 input_queue；cancellation_token 随 turn 创建（随时可中断）。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="node prep">
+      <div class="t">1 · 回合前检查与钩子回收 <span class="ref">turn.rs:167 · drain_async_hook_results</span></div>
+      <div class="d">guardian 待审输入检查；回收<b>上一个回合</b>遗留的异步钩子结果（before_user_prompt=true）。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="node prep">
+      <div class="t">2 · 取模型会话 + 采样前压缩 <span class="ref">turn.rs:177 · run_pre_sampling_compact (1298)</span></div>
+      <div class="d">复用/新建 ModelClientSession（WebSocket + sticky 路由缓存）；若历史已逼近上下文上限，<b>先压缩再进循环</b>。失败 → 记录输入、发 Error 事件、整个 turn 结束。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="node prep">
+      <div class="t">3 · 输入归一化 + 按需启动 MCP/插件 <span class="ref">required_mcp_servers_for_input (930)</span></div>
+      <div class="d">turn_user_input 把文本/图片/本地文件统一成内部结构；扫描输入里提到的 MCP server 和插件，只有被提到的才启动（懒加载）。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="node prep">
+      <div class="t">4 · 拍 step 上下文快照 <span class="ref">capture_step_context</span></div>
+      <div class="d">把"此刻的上下文 + 可用工具 + 权限 + 模型配置"冻结成一份一致视图（StepContext），后面采样和工具都认这一份。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="node prep">
+      <div class="t">5 · 记录上下文变更 + 技能/插件注入 <span class="ref">record_context_updates · build_skills_and_plugins (1032)</span></div>
+      <div class="d">tokio::join 并行：环境/工作区状态落 history；技能说明书、插件提示词作为 injection items 注入；session_start 钩子补跑；用户输入经 <b>run_hooks_and_record_inputs (866)</b> 落 history + rollout —— 钩子在这里可以否决整个输入。</div>
+    </div>
+    <div class="arrow">▼ <span class="lbl">进入外层 while 循环 —— 每个 iteration = 一个 step（一次模型往返）</span></div>
+
+    <div class="loopbox">
+      <span class="tag">外层循环：step 循环（turn.rs:447 起）</span>
+
+      <div class="node">
+        <div class="t">A · 收"插话"（steering） <span class="ref">input_queue.get_pending_input</span></div>
+        <div class="d">模型跑着时用户又发的消息，在这里并入历史；钩子同样可以拦下它（返回真 → break 收尾）。</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="node">
+        <div class="t">B · 重拍 step 快照 <span class="ref">capture_step_context_with_required_mcp_servers</span></div>
+        <div class="d">有插话时要重新收集 MCP 需求再拍快照，保证"上下文/工具/权限"仍然一致。</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="innerloop">
+        <span class="tag">内层循环：采样循环（run_sampling_request → try_run_sampling_request，turn.rs:1618 / 2525）</span>
+
+        <div class="node">
+          <div class="t">C1 · 组 prompt <span class="ref">clone_history().for_prompt() · build_prompt</span></div>
+          <div class="d">克隆历史 → 按模型输入模态过滤（有的模型不吃图）→ 缝合已执行工具的输出 → base_instructions + 工具清单拼成 Prompt。</div>
+        </div>
+        <div class="arrow">▼</div>
+
+        <div class="node" style="border-left:3px solid var(--cyan)">
+          <div class="t">C2 · 调模型（流式） <span class="ref">client_session.stream() · core/src/client.rs</span></div>
+          <div class="d">Responses API / WebSocket 双传输，流式吐 ResponseEvent；出错按 stream_max_retries 退避重试（handle_response_stream_error）。UsageLimit / ContextWindowExceeded 直接上抛。</div>
+        </div>
+        <div class="arrow">▼</div>
+
+        <div class="node">
+          <div class="t">C3 · 事件流消费 <span class="ref">loop { stream.next() } · turn.rs:2641 起</span></div>
+          <div class="d">逐个事件处理，边收边发 EventMsg 给壳（TUI 实时上屏）：</div>
+          <details><summary>展开：三类事件各走哪条路</summary>
+            <div class="dd">
+              <ol>
+                <li><b>助手文本/推理 delta</b> → 流式上屏 + 记录（plan 模式有专门的分段状态机 AssistantMessageStreamParsers）。</li>
+                <li><b>OutputItemDone：工具调用</b>（FunctionCall / LocalShellCall / WebSearchCall / MCP…）→ 塞进 <b>FuturesOrdered in_flight</b> 并发执行（见右侧"工具调用的一生"），不等前一个跑完。</li>
+                <li><b>OutputItemDone：最终消息</b> → 记 last_agent_message；response.completed → 内层循环正常结束。</li>
+              </ol>
+            </div>
+          </details>
+        </div>
+        <div class="arrow">▼ <span class="lbl">内层循环结束，带着 needs_follow_up 和 last_agent_message 回到外层</span></div>
+      </div>
+
+      <div class="node">
+        <div class="t">D · 采样后体检 <span class="ref">context_window_token_status · turn.rs:558 起</span></div>
+        <div class="d">回收异步钩子结果 → 查 token 占用 → needs_follow_up = 模型要继续(有工具调用) <b>||</b> 有用户插话。</div>
+      </div>
+
+      <div class="branch">
+        <div class="bcard compact">
+          <div class="bt">D1 · 顶到上下文上限 → 压缩后换新窗口继续</div>
+          <ul>
+            <li>run_auto_compact <b>(1471)</b>，phase=<b>MidTurn</b></li>
+            <li>摘要换掉旧历史 → 新 context window</li>
+            <li><code>continue</code> → 回到 A</li>
+            <li>压缩失败 → 发错误事件，turn 结束</li>
+          </ul>
+        </div>
+        <div class="bcard next">
+          <div class="bt">D2 · needs_follow_up=true → 继续</div>
+          <ul>
+            <li>工具结果已在历史里</li>
+            <li><code>continue</code> → 回到 A，开始下一个 step</li>
+            <li>这就是"agent loop"的循环体：模型→工具→模型→…</li>
+          </ul>
+        </div>
+        <div class="bcard stop">
+          <div class="bt">D3 · 模型给最终答案了 → 收尾三连</div>
+          <ul>
+            <li><b>Stop 钩子</b> run_turn_stop_hooks：可以"打回"——注入 hook 提示词强制再跑一步（防过早收工）</li>
+            <li>legacy after_agent 钩子</li>
+            <li>轮末压缩：超过阈值且无插话 → run_auto_compact，phase=<b>PostTurn</b></li>
+            <li><code>break</code> → 返回 last_agent_message</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="branch">
+        <div class="bcard err">
+          <div class="bt">错误出口（match Err 分支）</div>
+          <ul>
+            <li>ContextWindowExceeded（guardian 场景）→ 压缩重试一次</li>
+            <li>TurnAborted（用户 ESC）→ 直接返回</li>
+            <li>图片不合法 → 提示用户删图重试</li>
+            <li>其它 → emit_turn_error_lifecycle + Error 事件 → break（会话保留，可继续聊）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="loopback">▲ continue 回到循环头（A）　｜　break 出循环 → turn 结束，返回 last_agent_message</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 右侧栏 ═══════════ -->
+  <div class="side">
+    <div class="panel">
+      <h3>🔧 工具调用的一生（C3 分出的支线）</h3>
+      <ul>
+        <li><b>并发池</b>：ToolCallRuntime <code>tools/parallel.rs:45</code>，调用进 FuturesOrdered，完成顺序回填历史</li>
+        <li><b>编排</b>：ToolOrchestrator.run <code>tools/orchestrator.rs:125</code>（带重试的 run_attempt）</li>
+        <li><b>路由</b>：dispatch_tool_call <code>tools/router.rs:304</code> — 按 ToolName 找 CoreToolRuntime（内置 shell / apply_patch / unified_exec / MCP / 多代理 / plan / view_image…<code>tools/handlers/</code>）</li>
+        <li><b>审批</b>：request_approval <code>tools/approvals.rs:479</code> — 三级：用户(679) / guardian(572) / reviewer(554)；发 EventMsg::ExecApprovalRequest 等 ReviewDecision（approve / deny / 防护四态在 protocol/approvals.rs）</li>
+        <li><b>执行</b>：core/tools/sandboxing.rs 选沙箱 → linux-sandbox / windows-sandbox / network-proxy 真跑命令</li>
+        <li><b>回填</b>：function_call_output 记进 history + rollout → 下一次 build_prompt 时缝合进 prompt（C1 的 attach_to_prompt）</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h3>📦 压缩（compact）的三个时机</h3>
+      <ul>
+        <li><b>PreTurn</b>：进循环前（run_pre_sampling_compact，1298）</li>
+        <li><b>MidTurn</b>：step 之间顶到上限（run_auto_compact，1471）</li>
+        <li><b>PostTurn</b>：答完之后闲时整理（阈值百分比可配）</li>
+        <li>远端压缩（V2）走 provider 能力协商；本地失败有 model fallback（compact_model_fallback.rs）</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h3>🔌 钩子在循环上的五个位置</h3>
+      <ul>
+        <li>① session_start（回合开始补跑）</li>
+        <li>② user prompt 落历史时（run_hooks_and_record_inputs，866 — 可拦截输入）</li>
+        <li>③ 异步钩子结果回收（drain_async_hook_results，采样前后各一次）</li>
+        <li>④ <b>Stop 钩子</b>（可打回收尾，强制继续 — 和 Claude Code 的 Stop hook 同思路）</li>
+        <li>⑤ legacy after_agent（旧通知机制兜底）</li>
+        <li>对照 deepagents：deepagents 是中间件"包裹"整个调用；codex 是循环体内<b>固定插座</b>，循环本身不可包裹（六方对比里 codex 的"边缘插入"）</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h3>📝 全程伴跑的两条旁路</h3>
+      <ul>
+        <li><b>持久化</b>：所有 record_* 同时写 rollout（JSONL，<code>rollout/</code> crate）+ SQLite 元数据（<code>state/</code>）→ resume/fork 的数据源</li>
+        <li><b>事件流</b>：所有 send_event 发 EventMsg（<code>protocol/</code> 定义）→ channel → 三个壳各自渲染；审批请求也走这条路上浮给用户</li>
+      </ul>
+    </div>
+  </div>
+  </div>
+
+  <!-- ═══════════ 行号地图 ═══════════ -->
+  <h2>行号地图（精读入口，均在 codex-rs/ 下）</h2>
+  <table>
+    <tr><th>循环部位</th><th>位置</th><th>读什么</th></tr>
+    <tr><td>主循环入口</td><td><code>core/src/session/turn.rs:163</code></td><td>run_turn 签名 + 回合前准备（1~5 步全在这）</td></tr>
+    <tr><td>外层 while</td><td><code>turn.rs:447</code> 附近 <code>loop {</code></td><td>steering 收插话、step 快照、采样后 D 分支决策</td></tr>
+    <tr><td>采样外壳</td><td><code>turn.rs:1618</code></td><td>组 prompt + 重试状态机</td></tr>
+    <tr><td>采样内层</td><td><code>turn.rs:2525</code></td><td>stream 调用 + 事件循环 + 工具并发池</td></tr>
+    <tr><td>压缩三时机</td><td><code>turn.rs:1298 / 1471</code></td><td>PreTurn 与 Mid/PostTurn 共用的 run_auto_compact</td></tr>
+    <tr><td>Stop 钩子</td><td><code>turn.rs:651</code> 附近 run_turn_stop_hooks</td><td>"打回收尾"机制</td></tr>
+    <tr><td>工具并发</td><td><code>core/src/tools/parallel.rs:45</code></td><td>ToolCallRuntime / FuturesOrdered</td></tr>
+    <tr><td>工具路由</td><td><code>core/src/tools/router.rs:304</code></td><td>dispatch_tool_call_with_code_mode_result</td></tr>
+    <tr><td>审批</td><td><code>core/src/tools/approvals.rs:479/572/679</code></td><td>统一入口 / guardian / 用户三级</td></tr>
+    <tr><td>模型客户端</td><td><code>core/src/client.rs</code></td><td>ModelClientSession.stream — Responses/WS 双传输</td></tr>
+    <tr><td>事件与命令</td><td><code>protocol/src/</code>（approvals.rs 等）</td><td>Op / EventMsg / 审批四态</td></tr>
+  </table>
+
+  <div style="margin-top:26px;color:var(--tx2);font-size:12.5px">
+    一句话总结：codex 的 agent loop 是<b>两层循环</b>——外层 step 循环管"继续还是收工"（插话、压缩、Stop 钩子都在这层决策），
+    内层采样循环管"一次模型往返"（流式收事件、并发跑工具、失败重试）。两层都能被 CancellationToken 从外部整个斩断。
+  </div>
+</div>
+</body>
+</html>

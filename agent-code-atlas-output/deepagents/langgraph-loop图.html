@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>langgraph 引擎内部 · BSP 超步循环图</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #1c2733; --muted: #5b6b7b;
+    --line: #d9e0e7; --accent: #2563c7; --accent-soft: #e8effa;
+    --green: #1e8e4e; --green-soft: #e4f3ea;
+    --orange: #b45f06; --orange-soft: #fdeedd;
+    --red: #b3372f; --red-soft: #fae7e5;
+    --purple: #7c3aed; --purple-soft: #f1eafd;
+    --engine: #475569; --engine-soft: #eef1f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); line-height: 1.65; padding: 28px 18px 60px; }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 23px; }
+  h2 { font-size: 18px; margin: 34px 0 8px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .sub { color: var(--muted); font-size: 13.5px; margin: 6px 0 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  code, .mono { font-family: Consolas, monospace; font-size: 12.5px; background: var(--engine-soft); border-radius: 4px; padding: 0 5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; font-size: 12.5px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* 引擎大循环 */
+  .engine-loop { border: 2.5px dashed var(--engine); border-radius: 14px; padding: 18px 18px 14px; position: relative; background: var(--engine-soft); }
+  .engine-loop .label { position: absolute; top: -14px; left: 20px; background: var(--engine); color: #fff; font-size: 12.5px; font-weight: 700; border-radius: 20px; padding: 1px 14px; }
+  .tick-step { display: flex; gap: 10px; align-items: baseline; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 8px 0 0 0; }
+  .tick-step .no { font-weight: 800; color: var(--engine); font-size: 15px; flex-shrink: 0; }
+  .tick-step .t { font-size: 13px; }
+  .tick-step .t b { font-size: 13.5px; }
+  .tick-arrow { text-align: center; color: var(--engine); font-size: 14px; line-height: 1.1; margin: 2px 0; }
+  .decision { border: 2px solid var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 8px 14px; font-size: 13px; text-align: center; margin-top: 8px; }
+
+  /* 图拓扑 */
+  .topo { display: grid; grid-template-columns: 1fr 56px 1fr; gap: 8px; align-items: center; max-width: 720px; margin: 10px auto 0; }
+  .node-box { border-radius: 10px; padding: 10px 14px; text-align: center; border: 2px solid; }
+  .node-box b { font-size: 14px; display: block; }
+  .node-box small { font-size: 11.5px; color: var(--muted); }
+  .nb-agent { border-color: var(--accent); background: var(--accent-soft); }
+  .nb-tools { border-color: var(--green); background: var(--green-soft); }
+  .nb-end { border-color: var(--muted); background: var(--engine-soft); }
+  .edge { text-align: center; font-size: 11px; color: var(--muted); line-height: 1.3; }
+  .edge .ar { font-size: 18px; color: var(--accent); }
+
+  /* 超步走查 */
+  .walk { display: flex; flex-direction: column; gap: 0; }
+  .superstep { display: flex; gap: 14px; align-items: stretch; }
+  .ss-badge { flex-shrink: 0; width: 88px; display: flex; flex-direction: column; align-items: center; }
+  .ss-dot { background: var(--purple); color: #fff; font-weight: 700; font-size: 12px; border-radius: 8px; padding: 3px 10px; white-space: nowrap; }
+  .ss-line { flex: 1; width: 2px; background: var(--line); min-height: 18px; }
+  .ss-body { flex: 1; padding-bottom: 16px; }
+  .ss-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+  .ss-card b { font-size: 13.5px; }
+  .ss-card .det { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .hl { background: #fff7d6; border-radius: 4px; padding: 0 4px; }
+
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; background: var(--panel); }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; font-size: 12.5px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); color: var(--accent); }
+  .warn { margin-top: 14px; background: var(--red-soft); border: 1px solid #eec5c2; border-radius: 10px; padding: 10px 16px; font-size: 13px; }
+  .analogy { margin: 10px 0; font-size: 13px; color: var(--muted); background: var(--orange-soft); border-left: 3px solid var(--orange); padding: 8px 12px; border-radius: 0 6px 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>langgraph 引擎内部 · loop 怎么转</h1>
+  <div class="sub">deepagents 把 agent loop 整体委托给它 —— 这张图就是"发动机"的缸内视角 · 依据 langgraphjs 审计数据绘制(Python 版同构)· 配套 <a href="report.html">report.html</a> 与 <a href="钩子架构图.html">钩子架构图</a> 阅读</div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent)"></span>agent 节点(模型调用)</span>
+    <span><span class="dot" style="background:var(--green)"></span>tools 节点(工具执行)</span>
+    <span><span class="dot" style="background:var(--purple)"></span>超步(superstep)</span>
+    <span><span class="dot" style="background:var(--engine)"></span>引擎地盘(langgraph 内核)</span>
+  </div>
+
+  <h2>一 · 最大反转:langgraph 也有 while,但转的不是"模型调用"</h2>
+  <div class="card">
+    <p style="font-size:13.5px;">传统 agent loop 的伪代码是 <code>while True: 调模型 → 有无工具调用?</code> —— <b>循环一圈 = 问一次模型</b>。
+    langgraph 的内核恰好反过来:外层是 <code>while (await loop.tick(...))</code>(PregelLoop,审计 loop.ts),
+    但循环的每一圈是一个 <b>超步(superstep)</b> = "一批被触发的节点并发执行一次"。<b>是否继续不由模型输出决定,由"有没有节点被 channel 新版本触发"决定</b>——模型调用只是恰好发生在某个节点里。</p>
+    <div class="analogy">类比:<b>电子表格</b>。通道(channel)= 单元格,节点 = 公式。你改了一个格子(写入状态),引用它的公式自动重算——没有任何人在"while 循环里调用公式",是<b>数据变化拉动计算</b>。这就是比较报告说的"六家中唯一的数据驱动循环"。</div>
+  </div>
+
+  <h2>二 · 引擎大循环:一个 tick 的四步(审计 loop.ts / Pregel._runLoop)</h2>
+  <div class="engine-loop">
+    <div class="label">while (await loop.tick()) —— 每圈 = 一个超步</div>
+    <div class="tick-step"><span class="no">①</span><span class="t"><b>收写回:</b>把上一超步所有节点的产出,按各 channel 的 <b>reducer(合并函数)</b>写回通道 —— <span class="hl">deepagents 的 DeltaChannel 就是在这里替换了 messages 通道的合并规则,把 checkpoint 从 O(N²) 压到 O(N)</span></span></div>
+    <div class="tick-arrow">▼</div>
+    <div class="tick-step"><span class="no">②</span><span class="t"><b>存档:</b>写 checkpoint(_putCheckpoint)—— <b>每个超步边界自动存一次</b>,这就是 deepagents"断点恢复 / interrupt 后可 resume"的全部来源,没有任何中间件参与</span></div>
+    <div class="tick-arrow">▼</div>
+    <div class="tick-step"><span class="no">③</span><span class="t"><b>调度:</b>计算下一批任务(_prepareNextTasks)—— 扫一遍 channel 的新版本,被"新数据"触发的节点进入下一批;批内节点<b>并发执行</b>(配重试/超时/取消信号)</span></div>
+    <div class="tick-arrow">▼</div>
+    <div class="tick-step"><span class="no">④</span><span class="t"><b>执行与检查:</b>一批任务跑完,回到 ①。<b>停止三途径:</b>没节点被触发(自然终止)/ 步数超 recursionLimit(默认 25,deepagents 改 9999)抛 GraphRecursionError / interrupt() 暂停(可恢复)</span></div>
+    <div class="decision">tick 返回 false(无事可做)→ 循环退出 → 图执行结束</div>
+  </div>
+  <div class="analogy">类比:<b>施工队按节拍干活</b>。每拍结束全员交活入库(①写回),仓管员拍快照存档(②),工头巡视哪些岗位的原料被更新了、点名下一拍上场的人(③),没活可派就收工(④)。Agent 节点和 tools 节点就是两个工种,互相交活,谁也不"调用"谁。</div>
+
+  <h2>三 · 环在哪里:图的拓扑(create_agent 帮你拼好的标准图)</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:6px;">langgraph 里没有 while 包着模型——<b>"环"是画在图拓扑上的</b>。langchain 的 <code>create_agent</code>(deepagents 委托的装配工)用 StateGraph 拼出这张标准图:</p>
+  <div class="topo">
+    <div class="node-box nb-agent"><b>agent 节点</b><small>模型调用。deepagents 的整个 middleware 栈被织进这个节点内部:wrap_model_call(压缩/提示组装)→ 调模型</small></div>
+    <div class="edge">条件边 ▶<br>(路由函数)<br>有 tool_calls ?<br><span style="color:var(--green)">是 → tools</span><br><span style="color:var(--muted)">否 → END</span></div>
+    <div class="node-box nb-tools"><b>tools 节点</b><small>ToolNode 按名分派执行。deepagents 的 wrap_tool_call 钩子(权限/落盘)织在这层</small></div>
+  </div>
+  <div class="topo" style="grid-template-columns: 1fr; max-width: 340px; margin-top: 4px;">
+    <div class="edge"><span class="ar">◀</span> 固定边:干完活必回 agent(环就在这)</div>
+  </div>
+
+  <h2>四 · 一次工具调用的超步走查(把两张图叠起来)</h2>
+  <div class="walk">
+    <div class="superstep">
+      <div class="ss-badge"><span class="ss-dot">超步 0</span><div class="ss-line"></div></div>
+      <div class="ss-body"><div class="ss-card"><b>用户消息写入 messages 通道</b><div class="det">触发 agent 节点(它的触发条件 = messages 有新写入)</div></div></div>
+    </div>
+    <div class="superstep">
+      <div class="ss-badge"><span class="ss-dot">超步 1</span><div class="ss-line"></div></div>
+      <div class="ss-body"><div class="ss-card"><b>agent 节点执行</b><div class="det">tick ①收写回 → ②存档 → ③调度点名 agent → ④节点内部:中间件栈加工请求 → 调模型 → 返回 AIMessage(含 tool_calls:"search_web")。<b>写回:</b>AIMessage 追加进 messages 通道。</div></div></div>
+    </div>
+    <div class="superstep">
+      <div class="ss-badge"><span class="ss-dot">调度</span><div class="ss-line"></div></div>
+      <div class="ss-body"><div class="ss-card"><b>条件边路由(不是循环,是路标)</b><div class="det">路由函数读最新状态:最后一条消息带 tool_calls?<b>是</b> → 下一超步触发 tools 节点</div></div></div>
+    </div>
+    <div class="superstep">
+      <div class="ss-badge"><span class="ss-dot">超步 2</span><div class="ss-line"></div></div>
+      <div class="ss-body"><div class="ss-card"><b>tools 节点执行</b><div class="det">ToolNode 分派 search_web → 执行(权限/落盘钩子在此)→ ToolMessage 写回 messages。固定边:tools 干完必回 agent。若此间调用 interrupt() → 整个超步暂停、checkpoint 持久化,等人 Command(resume)</div></div></div>
+    </div>
+    <div class="superstep">
+      <div class="ss-badge"><span class="ss-dot">超步 3</span><div class="ss-line"></div></div>
+      <div class="ss-body"><div class="ss-card"><b>agent 节点再执行</b><div class="det">中间件加工(压缩可能在此触发)→ 模型看到工具结果 → 这次不再发 tool_calls → 路由判<b>否</b> → 触发 END → 没有任何节点再被触发 → tick 返回 false → <b>引擎收工</b></div></div></div>
+    </div>
+  </div>
+
+  <h2>五 · deepagents 的零件在引擎里的安装位置</h2>
+  <table>
+    <tr><th>deepagents 概念(你已学过)</th><th>在 langgraph 引擎里的真身</th></tr>
+    <tr><td><code>DeepAgentState</code> 的 DeltaChannel</td><td>messages <b>通道的自定义 reducer</b>(tick 第①步用它合并写入)</td></tr>
+    <tr><td>middleware 栈(五个检查站)</td><td>被 langchain create_agent <b>织进 agent / tools 节点内部</b>——引擎不知道中间件存在</td></tr>
+    <tr><td>checkpointer= 参数</td><td>tick 第②步"每超步存档"的持久化后端;thread_id 是档案柜编号</td></tr>
+    <tr><td>interrupt / 人工审批</td><td>引擎的 <code>interrupt()</code> 原语:暂停超步 + 持久化,恢复 = 同 thread 重新 invoke 带 Command(resume)</td></tr>
+    <tr><td>recursion_limit=9999</td><td>引擎的超步步数上限(JS 版默认 25;deepagents 覆盖成 9999——findings 那条"几乎不设防")</td></tr>
+    <tr><td>task 子代理</td><td>把一张编译图<b>当作父图的一个节点</b>(subgraph),checkpoint 命名空间以 <code>|</code> 分隔成树</td></tr>
+  </table>
+
+  <div class="warn"><b>一个诚实提醒:</b>引擎自己不带任何安全与执行设施——无沙箱、无输出截断、工具以宿主进程全权限裸跑(审计:nd-exec-sandbox "设计上不提供")。所以 deepagents 替它装了权限和落盘,codex 全部自建——<b>引擎越纯,框架越忙</b>。</div>
+</div>
+</body>
+</html>

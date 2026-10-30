@@ -1,0 +1,28 @@
+# ===== 被审计框架的源码克隆：一律不上传 =====
+# 体量大、不是本仓库作品；README 用官方仓库链接代替
+03-sdk-research/harness-research/
+
+# ===== .atlas-work 只保留自制对比脚本，其余临时文件不上传 =====
+.atlas-work/*
+!.atlas-work/comparison/
+
+# ===== Python 运行痕迹 =====
+__pycache__/
+*.py[cod]
+
+# ===== 系统与编辑器 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 内部工作文档与过程文件（含本机路径，不上传）=====
+GITHUB上传整理方案.md
+notes/
+agent-code-atlas-output/*/build_audit_*.py
+
+# ===== 推文旧文件名（已改名八家版，旧文件待删除）=====
+推文-六家Agent框架源码审计.md
+
+# ===== 其他 =====
+node_modules/
+*.log

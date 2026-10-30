@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>deepagents 钩子架构图 · 循环与检查站</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #1c2733; --muted: #5b6b7b;
+    --line: #d9e0e7; --station: #2563c7; --station-soft: #e8effa;
+    --engine: #64748b; --engine-soft: #eef1f5;
+    --green: #1e8e4e; --green-soft: #e4f3ea;
+    --orange: #b45f06; --orange-soft: #fdeedd;
+    --red: #b3372f; --red-soft: #fae7e5;
+    --purple: #7c3aed; --purple-soft: #f1eafd;
+    --cyan: #0e7490; --cyan-soft: #e0f4f8;
+    --gray: #6b7684; --gray-soft: #eceff2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6; padding: 28px 18px 60px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 23px; }
+  .sub { color: var(--muted); font-size: 13.5px; margin: 6px 0 20px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; font-size: 12.5px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  .flow { display: flex; flex-direction: column; align-items: center; }
+  .node {
+    background: var(--panel); border: 2px solid var(--line); border-radius: 10px;
+    padding: 10px 22px; text-align: center; max-width: 560px; width: 100%;
+  }
+  .node b { font-size: 14.5px; }
+  .node .en { font-size: 12px; color: var(--muted); }
+  .arrow { width: 2px; height: 22px; background: var(--line); position: relative; }
+  .arrow::after { content: ""; position: absolute; bottom: -1px; left: -3.5px;
+    border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-top: 7px solid var(--line); }
+  .loopbox {
+    border: 2px dashed var(--station); border-radius: 14px; padding: 18px 14px 16px;
+    max-width: 760px; width: 100%; position: relative; background: rgba(255,255,255,.55);
+  }
+  .loopbox .looplabel {
+    position: absolute; top: -13px; left: 22px; background: var(--station); color: #fff;
+    font-size: 12.5px; font-weight: 700; border-radius: 20px; padding: 1px 14px;
+  }
+
+  .station {
+    border: 2px solid var(--station); background: var(--station-soft); border-radius: 10px;
+    padding: 8px 16px; max-width: 560px; width: 100%; text-align: center;
+  }
+  .station b { font-size: 13.5px; color: var(--station); }
+  .station .when { display: block; font-size: 11.5px; color: var(--muted); }
+  .hooks { display: flex; flex-direction: column; gap: 6px; max-width: 640px; width: 100%; margin: 8px 0 4px; }
+  .hook {
+    display: flex; align-items: baseline; gap: 10px; background: var(--panel);
+    border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 6px 12px;
+  }
+  .hook .file { font-family: Consolas, monospace; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .hook .what { font-size: 12.5px; color: var(--ink); }
+  .hook .kind { margin-left: auto; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; padding: 0 7px; white-space: nowrap; }
+  .c-green  { border-left-color: var(--green); }  .c-green .file  { color: var(--green); }
+  .c-orange { border-left-color: var(--orange); } .c-orange .file { color: var(--orange); }
+  .c-red    { border-left-color: var(--red); }    .c-red .file    { color: var(--red); }
+  .c-purple { border-left-color: var(--purple); } .c-purple .file { color: var(--purple); }
+  .c-cyan   { border-left-color: var(--cyan); }   .c-cyan .file   { color: var(--cyan); }
+  .c-gray   { border-left-color: var(--gray); }   .c-gray .file   { color: var(--gray); }
+
+  .engine {
+    background: var(--engine-soft); border: 2px dashed var(--engine); color: var(--engine);
+    border-radius: 10px; padding: 7px 20px; text-align: center; max-width: 560px; width: 100%;
+    font-size: 13px; font-weight: 700;
+  }
+  .engine small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+  .branch {
+    border: 1.5px dashed var(--line); border-radius: 10px; padding: 8px 16px; text-align: center;
+    max-width: 560px; width: 100%; font-size: 13px; background: var(--panel);
+  }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; background: var(--panel); }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; font-size: 12.5px; text-align: left; vertical-align: top; }
+  th { background: var(--station-soft); color: var(--station); font-size: 12.5px; }
+  td code, .mono { font-family: Consolas, monospace; font-size: 12px; background: var(--gray-soft); border-radius: 4px; padding: 0 4px; }
+  h2 { font-size: 18px; margin: 34px 0 8px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .warn { margin-top: 20px; background: var(--red-soft); border: 1px solid #eec5c2; border-radius: 10px; padding: 10px 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>deepagents 钩子架构图</h1>
+  <div class="sub">agent loop(引擎的)× 检查站(框架定的)× 中间件(deepagents 派的人)—— 依据 agent-code-atlas 审计数据绘制 · 配套 <a href="report.html">report.html</a> 阅读</div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--green)"></span>上下文/记忆</span>
+    <span><span class="dot" style="background:var(--orange)"></span>压缩/清理</span>
+    <span><span class="dot" style="background:var(--red)"></span>权限/审批</span>
+    <span><span class="dot" style="background:var(--purple)"></span>子代理</span>
+    <span><span class="dot" style="background:var(--cyan)"></span>兼容/装配</span>
+    <span><span class="dot" style="background:var(--engine)"></span>虚线框 = 引擎的地盘(deepagents 不碰)</span>
+  </div>
+
+  <div class="flow">
+    <div class="node"><b>用户输入</b><div class="en">messages 进入 langgraph 图状态</div></div>
+    <div class="arrow"></div>
+
+    <div class="station"><b>站① <span class="mono">before_agent</span></b><span class="when">整趟循环开始前 · 跑一次</span></div>
+    <div class="hooks">
+      <div class="hook c-orange"><span class="file">patch_tool_calls.py</span><span class="what">给中断/取消留下的孤儿 tool call 合成错误应答,防止下一轮请求被模型拒绝</span><span class="kind">before_agent</span></div>
+      <div class="hook c-green"><span class="file">memory.py</span><span class="what">经 backend 读入 AGENTS.md 记忆文件进状态</span><span class="kind">before_agent</span></div>
+      <div class="hook c-green"><span class="file">skills.py</span><span class="what">从 backend 目录读 SKILL.md 技能元数据</span><span class="kind">before_agent</span></div>
+    </div>
+    <div class="arrow"></div>
+
+    <div class="loopbox">
+      <div class="looplabel">while True · 每圈(引擎:langchain create_agent + langgraph)</div>
+
+      <div class="station"><b>站② <span class="mono">wrap_model_call / modify_request</span></b><span class="when">每次调模型前 · 每圈一次</span></div>
+      <div class="hooks">
+        <div class="hook c-orange"><span class="file">summarization.py</span><span class="what">按 token 预算判定压缩:定 cutoff → 切历史 → 旧消息落盘 → 生成摘要</span><span class="kind">wrap_model_call</span></div>
+        <div class="hook c-green"><span class="file">(装配期组装)</span><span class="what">系统提示公式 USER → BASE → SUFFIX,每圈拼装</span><span class="kind">modify_request</span></div>
+        <div class="hook c-green"><span class="file">memory.py</span><span class="what">把记忆注入 {agent_memory} 模板位(含 cache_control 断点)</span><span class="kind">modify_request</span></div>
+        <div class="hook c-purple"><span class="file">subagents.py</span><span class="what">向系统提示注入"当前有哪些子代理可派"的说明</span><span class="kind">wrap_model_call</span></div>
+        <div class="hook c-orange"><span class="file">unsupported_content.py</span><span class="what">按目标模型 profile 过滤/替换它不支持的内容块</span><span class="kind">wrap_model_call</span></div>
+        <div class="hook c-cyan"><span class="file">_tool_exclusion.py</span><span class="what">按 harness profile 在模型可见层剔除指定工具(排在栈末防恢复)</span><span class="kind">wrap_model_call</span></div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="engine">模型调用<small>langchain model 节点内部:发请求、收响应 —— 引擎地盘,deepagents 只在站②/站③上下功夫</small></div>
+      <div class="arrow"></div>
+
+      <div class="branch"><b>响应里有工具调用?</b><br><span style="font-size:12px;color:var(--muted)">无 → 跳出循环去收尾(站⑤);有 → 进站③</span></div>
+      <div class="arrow"></div>
+
+      <div class="station"><b>站③ <span class="mono">wrap_tool_call</span>(执行前)+ langgraph 中断</b><span class="when">每次工具执行前 · 每次一次</span></div>
+      <div class="hooks">
+        <div class="hook c-red"><span class="file">_fs_interrupt.py</span><span class="what">装配期把 interrupt 规则编译成 HITL 中断配置;运行时命中即暂停整图,等人审批</span><span class="kind">interrupt 机制</span></div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="engine">工具执行<small>langchain ToolNode 分派;文件权限判定 _check_fs_permission 在工具内部(filesystem.py),故 findings 说"权限只在工具层强制"</small></div>
+      <div class="arrow"></div>
+
+      <div class="station"><b>站④ <span class="mono">wrap_tool_call</span>(执行后)</b><span class="when">每次工具执行后 · 每次一次</span></div>
+      <div class="hooks">
+        <div class="hook c-red"><span class="file">filesystem.py</span><span class="what">并发写冲突检测;大结果不回传,落盘成文件、回填"路径+预览"</span><span class="kind">wrap_tool_call</span></div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="branch">结果回填 messages(ToolMessage)→ <b>回到循环顶部</b></div>
+    </div>
+
+    <div class="arrow" style="height:26px"></div>
+
+    <div class="station"><b>站⑤ <span class="mono">after_agent</span></b><span class="when">整趟循环结束后 · 跑一次 —— 钩子位由 langchain 提供;deepagents 主包暂无中间件挂此站</span></div>
+    <div class="arrow"></div>
+
+    <div class="node"><b>最终回答</b><div class="en">最后一条 AIMessage 返回调用方</div></div>
+  </div>
+
+  <h2>五站速查表</h2>
+  <table>
+    <tr><th>站</th><th>钩子名</th><th>时机 / 频率</th><th>钩子形态</th><th>deepagents 挂靠者</th></tr>
+    <tr><td>①</td><td><code>before_agent</code></td><td>循环前 · 1 次</td><td>顺序执行钩子</td><td>patch_tool_calls(修补)、memory(读)、skills(读)</td></tr>
+    <tr><td>②</td><td><code>wrap_model_call</code> / <code>modify_request</code></td><td>每圈调模型前 · N 次</td><td>包裹器(可改流程)/ 请求改写器</td><td>summarization(压缩)、系统提示、memory(注)、subagents(注)、unsupported_content(滤)、_tool_exclusion(剔)</td></tr>
+    <tr><td>③</td><td><code>wrap_tool_call</code>(前)+ interrupt</td><td>每次工具执行前 · M 次</td><td>包裹器 + langgraph 图中断</td><td>权限 HITL(_fs_interrupt 编译的规则)</td></tr>
+    <tr><td>④</td><td><code>wrap_tool_call</code>(后)</td><td>每次工具执行后 · M 次</td><td>包裹器</td><td>filesystem(冲突检测、大结果落盘)</td></tr>
+    <tr><td>⑤</td><td><code>after_agent</code></td><td>循环后 · 1 次</td><td>顺序执行钩子</td><td>(主包暂无;位由 langchain 预留)</td></tr>
+  </table>
+  <div class="note">N = 循环圈数;M = 工具调用次数。同一站上多个中间件按装配顺序叠层执行(洋葱模型:先挂的在外面)。</div>
+
+  <div class="warn">
+    <b>两个"不是钩子"的例外</b>(易混):① <b>断点恢复</b>——langgraph 在每个节点边界自动存 checkpoint,恢复 = 同 thread_id 重新 invoke,无中间件参与;② <b>沙箱安全</b>——是执行器零件的材质(实现 <code>SandboxBackendProtocol</code>),不是挂在站上的检查。
+  </div>
+</div>
+</body>
+</html>

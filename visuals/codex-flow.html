@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Codex Agent Loop · 流程与架构图解</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#161b22;--panel2:#1c2129;--bd:#30363d;--tx:#e6edf3;--mut:#8b949e;
+  --pl:#a371f7;--wk:#4493f8;--ma:#db61a2;--gr:#3fb950;--rd:#f85149;--am:#d29922;--cy:#39c5cf;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+.hero{padding:34px 28px 22px;border:1px solid var(--bd);border-radius:14px;background:
+  radial-gradient(1200px 300px at 20% -40%,rgba(163,113,247,.18),transparent),
+  radial-gradient(900px 260px at 85% -30%,rgba(68,147,248,.15),transparent),var(--panel)}
+h1{font-size:26px;margin-bottom:8px}
+.hero .sub{color:var(--mut);font-size:13.5px;max-width:1000px}
+h2.sec{margin:46px 0 6px;font-size:20px;display:flex;align-items:center;gap:10px}
+h2.sec .no{font-family:Consolas,monospace;color:var(--pl);font-size:14px;border:1px solid var(--bd);border-radius:6px;padding:1px 8px;background:var(--panel)}
+.sub{color:var(--mut);font-size:13.5px;margin-bottom:14px;max-width:950px}
+.card{border:1px solid var(--bd);border-radius:14px;background:var(--panel);padding:14px;margin-top:10px}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:"Microsoft YaHei","PingFang SC",sans-serif;fill:var(--tx)}
+svg .mut{fill:var(--mut)} svg .code{font-family:Consolas,monospace}
+.note{font-size:12.5px;color:var(--mut);margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+th,td{border:1px solid var(--bd);padding:7px 12px;text-align:left}
+th{background:var(--panel2);color:var(--mut)}
+td .code{font-family:Consolas,monospace;color:var(--cy);font-size:12.5px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 2px 0;font-size:12.5px;color:var(--mut)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+  <h1>Codex Agent Loop · 流程与架构图解</h1>
+  <div class="sub">openai/codex(codex-rs,Rust 多 crate 工作区)· master 快照 2026-09-30(≈0.16x 线)· 单核多壳:tui / exec / app-server 三壳共一套 core 循环;护栏双链(execpolicy 规则 + OS 级沙箱)垫在工具执行下面;协议钉死 Responses API。</div>
+  <div class="legend">
+    <span><i style="background:#a371f7"></i>core 控制层(循环/决策)</span>
+    <span><i style="background:#4493f8"></i>执行角色(工具/沙箱/code-mode/MCP)</span>
+    <span><i style="background:#db61a2"></i>人与客户端壳</span>
+    <span><i style="background:#f85149"></i>护栏门禁(策略/审批)</span>
+    <span><i style="background:#3fb950"></i>主闭环/存储留痕</span>
+    <span><i style="background:#39c5cf"></i>外部模型依赖</span>
+    <span><i style="background:#d29922"></i>降级/重试/压缩</span>
+  </div>
+</div>
+
+<!-- ======================== ① 头图:总架构 ======================== -->
+<h2 class="sec"><span class="no">①</span>总架构:单核多壳,一切汇入 core</h2>
+<div class="sub">四个客户端壳(TUI / exec / IDE / TS SDK)把请求交给 app-server(JSON-RPC),core 里每个线程一个 Session:任务外环套 run_turn 内环,工具调用先过护栏双链再进执行角色;模型是右侧独立的外部依赖,会话事实追加进左下的 rollout 日志。</div>
+<div class="card">
+<svg viewBox="0 0 1160 700" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a371f7"/></marker>
+<marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#4493f8"/></marker>
+<marker id="arM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#db61a2"/></marker>
+<marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#3fb950"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#f85149"/></marker>
+<marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#39c5cf"/></marker>
+</defs>
+
+<!-- 客户端壳 -->
+<rect x="20" y="20" width="160" height="70" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="100" y="46" text-anchor="middle" font-size="14" fill="#db61a2" font-weight="bold">用户</text>
+<text x="100" y="68" text-anchor="middle" font-size="10.5" class="mut">输入 / 审批应答</text>
+<rect x="194" y="20" width="160" height="70" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="274" y="46" text-anchor="middle" font-size="13.5" fill="#db61a2" font-weight="bold">TUI</text>
+<text x="274" y="68" text-anchor="middle" font-size="10.5" class="mut">终端交互(默认壳)</text>
+<rect x="368" y="20" width="160" height="70" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="448" y="46" text-anchor="middle" font-size="13.5" fill="#db61a2" font-weight="bold">codex exec</text>
+<text x="448" y="68" text-anchor="middle" font-size="10.5" class="mut">一次性 / CI</text>
+<rect x="542" y="20" width="160" height="70" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="622" y="46" text-anchor="middle" font-size="13.5" fill="#db61a2" font-weight="bold">IDE / 扩展</text>
+<text x="622" y="68" text-anchor="middle" font-size="10.5" class="mut">app-server 客户端</text>
+<rect x="716" y="20" width="160" height="70" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="796" y="42" text-anchor="middle" font-size="13.5" fill="#db61a2" font-weight="bold">TS SDK</text>
+<text x="796" y="60" text-anchor="middle" font-size="10.5" class="mut">spawn exec 子进程</text>
+<text x="796" y="78" text-anchor="middle" font-size="10.5" class="mut code">exec.ts:92</text>
+
+<line x1="274" y1="90" x2="274" y2="110" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="448" y1="90" x2="448" y2="110" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="622" y1="90" x2="622" y2="110" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="796" y1="90" x2="796" y2="110" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+
+<!-- app-server -->
+<rect x="20" y="112" width="890" height="60" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="465" y="136" text-anchor="middle" font-size="13.5" fill="#a371f7" font-weight="bold">app-server — JSON-RPC 服务层(thread/start、account/* 等方法族)</text>
+<text x="465" y="158" text-anchor="middle" font-size="10.5" class="mut">codex exec 不走 socket:InProcessAppServerClient 进程内直启(exec/src/lib.rs:16-21)</text>
+<line x1="465" y1="172" x2="465" y2="190" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="478" y="186" font-size="10.5" class="mut">Op 提交 / 事件下行</text>
+
+<!-- 外部模型供应商(右列) -->
+<rect x="944" y="112" width="196" height="386" rx="10" fill="#0a2124" stroke="#39c5cf" stroke-dasharray="6 4"/>
+<text x="1042" y="140" text-anchor="middle" font-size="13" fill="#39c5cf" font-weight="bold">外部:模型供应商</text>
+<text x="1042" y="162" text-anchor="middle" font-size="9.5" class="mut">⇦ 采样请求 · ⇠ ResponseItem 流</text>
+<text x="1042" y="196" text-anchor="middle" font-size="11">WireApi 钉死 Responses</text>
+<text x="1042" y="215" text-anchor="middle" font-size="10" class="mut">(chat 协议已删除)</text>
+<line x1="964" y1="236" x2="964" y2="236" stroke="#39c5cf"/>
+<text x="1042" y="250" text-anchor="middle" font-size="11">openai · chatgpt 订阅</text>
+<text x="1042" y="270" text-anchor="middle" font-size="11">bedrock · ollama</text>
+<text x="1042" y="290" text-anchor="middle" font-size="11">lmstudio</text>
+<text x="1042" y="316" text-anchor="middle" font-size="10.5" class="mut code">lib.rs:652-684</text>
+<text x="1042" y="352" text-anchor="middle" font-size="10.5" class="mut">HTTP/流断线 backoff 重试</text>
+<text x="1042" y="372" text-anchor="middle" font-size="10.5" class="mut code">responses_retry.rs:35-55</text>
+<text x="1042" y="408" text-anchor="middle" font-size="10.5" class="mut">sticky 路由 · WS 复用</text>
+<text x="1042" y="428" text-anchor="middle" font-size="10.5" class="mut">双通道认证:API key</text>
+<text x="1042" y="448" text-anchor="middle" font-size="10.5" class="mut">/ ChatGPT OAuth 订阅</text>
+
+<!-- core 控制层 -->
+<rect x="20" y="192" width="890" height="160" rx="12" fill="#161027" stroke="#a371f7"/>
+<text x="465" y="216" text-anchor="middle" font-size="13" fill="#a371f7" font-weight="bold">core — 控制层(每线程一个 Session,循环本身由 Op / 事件驱动)</text>
+<rect x="36" y="232" width="196" height="78" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="134" y="256" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">Session(线程态)</text>
+<text x="134" y="276" text-anchor="middle" font-size="10.5">steering 邮箱 input_queue</text>
+<text x="134" y="294" text-anchor="middle" font-size="10.5" class="mut code">session/input_queue.rs</text>
+<rect x="248" y="232" width="176" height="78" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="336" y="256" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">任务外环 loop</text>
+<text x="336" y="276" text-anchor="middle" font-size="10.5">run_turn → 判定续跑</text>
+<text x="336" y="294" text-anchor="middle" font-size="10.5" class="mut code">regular.rs:104-122</text>
+<rect x="440" y="232" width="212" height="78" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="546" y="256" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">run_turn 内环</text>
+<text x="546" y="276" text-anchor="middle" font-size="10.5">step 循环:采样→工具→续?</text>
+<text x="546" y="294" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:163,426</text>
+<rect x="668" y="232" width="226" height="78" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="781" y="256" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">ToolCallRuntime</text>
+<text x="781" y="276" text-anchor="middle" font-size="10.5">并行执行工具调用 + barrier</text>
+<text x="781" y="294" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:56,1638</text>
+<line x1="232" y1="271" x2="246" y2="271" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<line x1="424" y1="271" x2="438" y2="271" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<line x1="652" y1="271" x2="666" y2="271" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="465" y="340" text-anchor="middle" font-size="10.5" class="mut">上下文自愈:auto-compact 双时机(turn.rs:708-730 / 760)· HTTP 重试 backoff(responses_retry.rs:35-55)</text>
+
+<line x1="910" y1="250" x2="942" y2="250" stroke="#39c5cf" stroke-width="1.5" marker-end="url(#arC)"/>
+<line x1="942" y1="290" x2="912" y2="290" stroke="#39c5cf" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+
+<!-- 护栏双链 -->
+<rect x="20" y="372" width="890" height="86" rx="12" fill="#2d1214" stroke="#f85149"/>
+<text x="465" y="392" text-anchor="middle" font-size="13" fill="#f85149" font-weight="bold">护栏双链 — 每条命令 / 补丁执行前必经</text>
+<rect x="36" y="402" width="280" height="46" rx="8" fill="#2d1214" stroke="#f85149"/>
+<text x="176" y="421" text-anchor="middle" font-size="11.5" fill="#f85149" font-weight="bold">execpolicy 规则引擎</text>
+<text x="176" y="439" text-anchor="middle" font-size="10">allow · deny · amend(改写命令)</text>
+<rect x="332" y="402" width="240" height="46" rx="8" fill="#2d1214" stroke="#f85149"/>
+<text x="452" y="421" text-anchor="middle" font-size="11.5" fill="#f85149" font-weight="bold">SafetyCheck 三态</text>
+<text x="452" y="439" text-anchor="middle" font-size="10">AutoApprove · AskUser · Reject</text>
+<rect x="588" y="402" width="306" height="46" rx="8" fill="#2d1214" stroke="#f85149"/>
+<text x="741" y="421" text-anchor="middle" font-size="11.5" fill="#f85149" font-weight="bold">OS 级沙箱强制层</text>
+<text x="741" y="439" text-anchor="middle" font-size="9.5">Seatbelt · Landlock+bwrap · Windows + network-proxy</text>
+<line x1="465" y1="352" x2="465" y2="370" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="478" y="366" font-size="10.5" class="mut">命令 / 补丁 先过闸</text>
+
+<!-- 执行层 -->
+<rect x="20" y="496" width="162" height="68" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="101" y="518" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">shell / exec</text>
+<text x="101" y="535" text-anchor="middle" font-size="10">持久 PTY 会话</text>
+<text x="101" y="551" text-anchor="middle" font-size="10.5" class="mut code">shell_spec.rs:67</text>
+<rect x="196" y="496" width="162" height="68" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="277" y="518" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">apply-patch</text>
+<text x="277" y="535" text-anchor="middle" font-size="10">V4A 补丁引擎</text>
+<text x="277" y="551" text-anchor="middle" font-size="10.5" class="mut code">safety.rs:59-66</text>
+<rect x="372" y="496" width="162" height="68" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="453" y="518" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">code-mode exec</text>
+<text x="453" y="535" text-anchor="middle" font-size="10">V8 无 FS / 无网络</text>
+<text x="453" y="551" text-anchor="middle" font-size="10.5" class="mut code">v8_init.rs:5</text>
+<rect x="548" y="496" width="162" height="68" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="629" y="518" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">MCP(rmcp)</text>
+<text x="629" y="535" text-anchor="middle" font-size="10">stdio / HTTP + OAuth</text>
+<text x="629" y="551" text-anchor="middle" font-size="10.5" class="mut code">mcp_runtime.rs</text>
+<rect x="724" y="496" width="162" height="68" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="805" y="518" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">spawn_agent</text>
+<text x="805" y="535" text-anchor="middle" font-size="10">完整子 Codex 线程</text>
+<text x="805" y="551" text-anchor="middle" font-size="10" class="mut code">codex_delegate.rs:46</text>
+<line x1="465" y1="458" x2="465" y2="494" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="478" y="480" font-size="10.5" class="mut">放行 → 沙箱内执行 / 提权重跑</text>
+
+<!-- 子代理回环 -->
+<path d="M 886 522 C 922 522, 922 332, 912 330" fill="none" stroke="#db61a2" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arM)"/>
+<text x="928" y="430" text-anchor="middle" font-size="10.5" fill="#db61a2" transform="rotate(-90 928 430)">新 Session · 独立 rollout</text>
+
+<!-- 存储 -->
+<rect x="20" y="612" width="280" height="76" rx="10" fill="#0f2318" stroke="#3fb950"/>
+<text x="160" y="636" text-anchor="middle" font-size="12.5" fill="#3fb950" font-weight="bold">rollout JSONL 会话日志</text>
+<text x="160" y="656" text-anchor="middle" font-size="10">resume 续跑 · fork 分叉(InitialHistory)</text>
+<text x="160" y="673" text-anchor="middle" font-size="10.5" class="mut code">history/src/lib.rs:350-378</text>
+<rect x="316" y="612" width="250" height="76" rx="10" fill="#0f2318" stroke="#3fb950"/>
+<text x="441" y="636" text-anchor="middle" font-size="12.5" fill="#3fb950" font-weight="bold">state sqlite</text>
+<text x="441" y="656" text-anchor="middle" font-size="10">线程索引 · 记忆租约 · lineage</text>
+<text x="441" y="673" text-anchor="middle" font-size="10.5" class="mut code">state/src/state_db.rs</text>
+<rect x="582" y="612" width="260" height="76" rx="10" fill="#0f2318" stroke="#3fb950"/>
+<text x="712" y="636" text-anchor="middle" font-size="12.5" fill="#3fb950" font-weight="bold">memories 后台流水线</text>
+<text x="712" y="656" text-anchor="middle" font-size="10">Phase1 提取 → Phase2 固化回注</text>
+<text x="712" y="673" text-anchor="middle" font-size="10.5" class="mut code">memories/README.md</text>
+<line x1="465" y1="564" x2="465" y2="610" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arG)"/>
+<text x="478" y="592" font-size="10.5" class="mut">执行结果 / 事件 追加留痕</text>
+<path d="M 40 352 C 10 400, 10 560, 96 610" fill="none" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arG)"/>
+<text x="14" y="480" text-anchor="middle" font-size="10.5" fill="#3fb950" transform="rotate(-90 14 480)">事件留痕(append-only)</text>
+</svg>
+<div class="legend">
+<span><i style="background:#a371f7"></i>core 控制层</span>
+<span><i style="background:#4493f8"></i>执行角色</span>
+<span><i style="background:#db61a2"></i>人/客户端壳</span>
+<span><i style="background:#f85149"></i>护栏门禁</span>
+<span><i style="background:#3fb950"></i>存储留痕</span>
+<span><i style="background:#39c5cf"></i>外部模型</span>
+</div>
+</div>
+
+<!-- ======================== ② 总循环 ======================== -->
+<h2 class="sec"><span class="no">②</span>总循环:任务外环 ⊃ run_turn 内环</h2>
+<div class="sub">外环负责任务级续跑判定(出错或没活干就收工);内环是真正的"采样→执行→回灌"心跳。用户在模型运行中插入的新输入进 steering 邮箱,下一 step 被自然消化——循环不被打断。</div>
+<div class="card">
+<svg viewBox="0 0 1160 530" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a371f7"/></marker>
+<marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#3fb950"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#f85149"/></marker>
+</defs>
+
+<rect x="290" y="28" width="120" height="30" rx="8" fill="#2d1214" stroke="#f85149"/>
+<text x="350" y="48" text-anchor="middle" font-size="11" fill="#f85149">TurnFailed</text>
+
+<rect x="20" y="64" width="1120" height="330" rx="12" fill="none" stroke="#3fb950"/>
+<text x="40" y="90" font-size="13" fill="#3fb950" font-weight="bold">任务外环 — RegularTask::run</text>
+<text x="1120" y="90" text-anchor="end" font-size="10.5" class="mut code">tasks/regular.rs:104-122</text>
+
+<rect x="44" y="104" width="170" height="60" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="129" y="128" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">run_turn(输入)</text>
+<text x="129" y="148" text-anchor="middle" font-size="10" class="mut code">regular.rs:105 → turn.rs:163</text>
+<rect x="244" y="104" width="180" height="60" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="334" y="128" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">terminal_error?</text>
+<text x="334" y="148" text-anchor="middle" font-size="10">是 → 任务失败终止</text>
+<rect x="454" y="104" width="200" height="60" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="554" y="128" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">pending_input 非空?</text>
+<text x="554" y="148" text-anchor="middle" font-size="10">邮箱还有未处理输入?</text>
+<rect x="684" y="104" width="120" height="60" rx="10" fill="#0f2318" stroke="#3fb950"/>
+<text x="744" y="128" text-anchor="middle" font-size="12.5" fill="#3fb950" font-weight="bold">任务完成</text>
+<text x="744" y="148" text-anchor="middle" font-size="10">return</text>
+<rect x="824" y="104" width="300" height="60" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="974" y="128" text-anchor="middle" font-size="11.5" class="mut">无 max_turns 上限</text>
+<text x="974" y="148" text-anchor="middle" font-size="10" class="mut">全仓无 max_turns 配置:靠模型自终止</text>
+
+<line x1="214" y1="134" x2="242" y2="134" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="424" y1="134" x2="452" y2="134" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="438" y="126" text-anchor="middle" font-size="10" class="mut">否</text>
+<line x1="654" y1="134" x2="682" y2="134" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="668" y="126" text-anchor="middle" font-size="10" class="mut">否</text>
+<line x1="334" y1="104" x2="334" y2="60" stroke="#f85149" stroke-width="1.5" marker-end="url(#arR)"/>
+<text x="344" y="86" font-size="10" fill="#f85149">是</text>
+
+<path d="M 554 164 L 554 368 L 129 368 L 129 168" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arG)"/>
+<text x="342" y="362" text-anchor="middle" font-size="10.5" fill="#3fb950">是:next_input=∅ 续跑下一轮任务输入</text>
+
+<rect x="44" y="196" width="1072" height="150" rx="12" fill="#161027" stroke="#a371f7"/>
+<text x="64" y="220" font-size="13" fill="#a371f7" font-weight="bold">run_turn 内环 — step 循环</text>
+<text x="1096" y="220" text-anchor="end" font-size="10.5" class="mut code">turn.rs:426</text>
+
+<rect x="64" y="236" width="186" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="157" y="259" text-anchor="middle" font-size="11.5" fill="#a371f7" font-weight="bold">① drain steering 输入</text>
+<text x="157" y="277" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:430-437</text>
+<rect x="266" y="236" width="186" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="359" y="259" text-anchor="middle" font-size="11.5" fill="#a371f7" font-weight="bold">② capture step 上下文</text>
+<text x="359" y="277" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:462-498</text>
+<rect x="468" y="236" width="170" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="553" y="259" text-anchor="middle" font-size="11.5" fill="#a371f7" font-weight="bold">③ 采样请求(重试)</text>
+<text x="553" y="277" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:2618</text>
+<rect x="654" y="236" width="180" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="744" y="259" text-anchor="middle" font-size="11.5" fill="#a371f7" font-weight="bold">④ ToolCallRuntime 并行</text>
+<text x="744" y="277" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:1638</text>
+<rect x="850" y="236" width="190" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="945" y="259" text-anchor="middle" font-size="11.5" fill="#a371f7" font-weight="bold">⑤ needs_follow_up?</text>
+<text x="945" y="277" text-anchor="middle" font-size="10.5" class="mut code">turn.rs:540-581</text>
+<line x1="250" y1="264" x2="264" y2="264" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="452" y1="264" x2="466" y2="264" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="638" y1="264" x2="652" y2="264" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="834" y1="264" x2="848" y2="264" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+
+<path d="M 945 236 C 945 224, 157 224, 157 234" fill="none" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="550" y="231" text-anchor="middle" font-size="10" fill="#a371f7">是:工具输出回灌,进入下一 step</text>
+
+<rect x="850" y="306" width="190" height="32" rx="8" fill="#1c1233" stroke="#a371f7"/>
+<text x="945" y="327" text-anchor="middle" font-size="11">stop hooks(turn.rs:653-706)</text>
+<line x1="945" y1="292" x2="945" y2="304" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="933" y="302" text-anchor="end" font-size="10" class="mut">否</text>
+<path d="M 850 322 C 700 322, 600 240, 556 168" fill="none" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arP)"/>
+<text x="668" y="292" text-anchor="middle" font-size="10" fill="#a371f7">hook 通过 → break,回外环判定</text>
+
+<rect x="20" y="414" width="353" height="96" rx="10" fill="#2a1f0a" stroke="#d29922"/>
+<text x="40" y="440" font-size="12" fill="#d29922" font-weight="bold">mid-turn 兜底压缩</text>
+<text x="40" y="462" font-size="10.5">ContextWindowExceeded → 自动 compact → 重试一次</text>
+<text x="40" y="484" font-size="10.5" class="mut code">turn.rs:760 · compact.rs:109</text>
+<rect x="397" y="414" width="353" height="96" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="417" y="440" font-size="12" fill="#db61a2" font-weight="bold">steering 转向(不打断循环)</text>
+<text x="417" y="462" font-size="10.5">运行中的用户新输入进 input_queue 邮箱,</text>
+<text x="417" y="480" font-size="10.5">下一 step 开头被 drain 注入,模型自然消化</text>
+<rect x="774" y="414" width="353" height="96" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="794" y="440" font-size="12" class="mut" font-weight="bold">四种终止方式</text>
+<text x="794" y="462" font-size="10.5" class="mut">无 follow-up · 用户取消 · terminal_error · stop hook 强停</text>
+<text x="794" y="484" font-size="10.5" class="mut code">turn.rs:653-706,755</text>
+</svg>
+</div>
+
+<!-- ======================== ③ 状态机 ======================== -->
+<h2 class="sec"><span class="no">③</span>一轮的生命周期状态机</h2>
+<div class="sub">从空闲收到 Op 开始,一轮 turn 在"采样↔工具"之间振荡,直到模型不再需要工具;stop hooks 可以放行、拦截续跑或强停;两个黄色状态是自愈路径,粉色是唯一的人工介入点。</div>
+<div class="card">
+<svg viewBox="0 0 1160 510" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a371f7"/></marker>
+<marker id="arM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#db61a2"/></marker>
+<marker id="arY" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#d29922"/></marker>
+<marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#3fb950"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#f85149"/></marker>
+</defs>
+
+<rect x="20" y="110" width="120" height="56" rx="10" fill="#161b22" stroke="#8b949e"/>
+<text x="80" y="143" text-anchor="middle" font-size="12" class="mut">空闲(等 Op)</text>
+<rect x="190" y="110" width="150" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="265" y="133" text-anchor="middle" font-size="12" fill="#a371f7" font-weight="bold">任务开始</text>
+<text x="265" y="152" text-anchor="middle" font-size="9.5" class="mut">emit TaskStarted</text>
+<rect x="380" y="110" width="150" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="455" y="133" text-anchor="middle" font-size="12" fill="#a371f7" font-weight="bold">采样中</text>
+<text x="455" y="152" text-anchor="middle" font-size="9.5" class="mut">history+提示 → 模型</text>
+<rect x="570" y="110" width="160" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="650" y="133" text-anchor="middle" font-size="12" fill="#a371f7" font-weight="bold">工具执行中</text>
+<text x="650" y="152" text-anchor="middle" font-size="9.5" class="mut">ToolCallRuntime</text>
+<rect x="770" y="110" width="150" height="56" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="845" y="133" text-anchor="middle" font-size="12" fill="#a371f7" font-weight="bold">stop hooks</text>
+<text x="845" y="152" text-anchor="middle" font-size="9.5" class="mut">turn.rs:653-706</text>
+<rect x="960" y="110" width="150" height="56" rx="10" fill="#0f2318" stroke="#3fb950"/>
+<text x="1035" y="133" text-anchor="middle" font-size="12" fill="#3fb950" font-weight="bold">TurnComplete</text>
+<text x="1035" y="152" text-anchor="middle" font-size="9.5" class="mut">emit turn/end</text>
+
+<rect x="380" y="260" width="150" height="56" rx="10" fill="#2a1f0a" stroke="#d29922"/>
+<text x="455" y="283" text-anchor="middle" font-size="12" fill="#d29922" font-weight="bold">自动压缩中</text>
+<text x="455" y="302" text-anchor="middle" font-size="9.5" class="mut">mid-turn 兜底</text>
+<rect x="570" y="260" width="160" height="56" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="650" y="283" text-anchor="middle" font-size="12" fill="#db61a2" font-weight="bold">等待人工审批</text>
+<text x="650" y="302" text-anchor="middle" font-size="9.5" class="mut">AskUser</text>
+<rect x="770" y="260" width="150" height="56" rx="10" fill="#2a1f0a" stroke="#d29922" stroke-dasharray="5 4"/>
+<text x="845" y="283" text-anchor="middle" font-size="11.5" fill="#d29922" font-weight="bold">post-turn compact</text>
+<text x="845" y="302" text-anchor="middle" font-size="9.5" class="mut">阈值% 触发(708-730)</text>
+
+<rect x="770" y="410" width="150" height="56" rx="10" fill="#161b22" stroke="#8b949e"/>
+<text x="845" y="433" text-anchor="middle" font-size="12" class="mut" font-weight="bold">TurnAborted</text>
+<text x="845" y="452" text-anchor="middle" font-size="9.5" class="mut">用户取消</text>
+<rect x="960" y="410" width="150" height="56" rx="10" fill="#2d1214" stroke="#f85149"/>
+<text x="1035" y="433" text-anchor="middle" font-size="12" fill="#f85149" font-weight="bold">TurnFailed</text>
+<text x="1035" y="452" text-anchor="middle" font-size="9.5" class="mut">terminal_error</text>
+
+<line x1="140" y1="138" x2="188" y2="138" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="164" y="130" text-anchor="middle" font-size="10" class="mut">SubmitOp</text>
+<line x1="340" y1="138" x2="378" y2="138" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="359" y="130" text-anchor="middle" font-size="10" class="mut">run_turn</text>
+<line x1="530" y1="138" x2="568" y2="138" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="549" y="102" text-anchor="middle" font-size="10" class="mut">function_call</text>
+<line x1="730" y1="138" x2="768" y2="138" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="749" y="102" text-anchor="middle" font-size="10" class="mut">无 follow-up</text>
+<line x1="920" y1="138" x2="958" y2="138" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arG)"/>
+<text x="939" y="102" text-anchor="middle" font-size="10" fill="#3fb950">hook 通过</text>
+
+<path d="M 650 166 C 650 178, 455 178, 455 168" fill="none" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="552" y="198" text-anchor="middle" font-size="10" fill="#a371f7">needs_follow_up ✔ 输出回灌</text>
+
+<line x1="700" y1="166" x2="700" y2="258" stroke="#db61a2" stroke-width="1.5" marker-end="url(#arM)"/>
+<text x="708" y="218" font-size="10" fill="#db61a2">需审批</text>
+<line x1="600" y1="260" x2="600" y2="168" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arP)"/>
+
+<line x1="455" y1="166" x2="455" y2="258" stroke="#d29922" stroke-width="1.5" marker-end="url(#arY)"/>
+<text x="463" y="218" font-size="10" fill="#d29922">ContextWindowExceeded</text>
+<line x1="425" y1="260" x2="425" y2="168" stroke="#d29922" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arY)"/>
+<text x="417" y="218" text-anchor="end" font-size="10" fill="#d29922">压缩完成→重试一次</text>
+<text x="650" y="338" text-anchor="middle" font-size="10" fill="#a371f7">批准→提权重跑 / 拒→错误回模型</text>
+
+<line x1="845" y1="166" x2="845" y2="258" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arY)"/>
+<text x="853" y="215" font-size="10" fill="#d29922">阈值触发</text>
+<line x1="845" y1="316" x2="845" y2="408" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<text x="853" y="365" font-size="10" class="mut">hook 强停 / Ctrl-C</text>
+
+<path d="M 275 166 C 275 478, 500 478, 700 478 L 1010 478 C 1038 478, 1036 470, 1036 468" fill="none" stroke="#f85149" stroke-width="1.5" marker-end="url(#arR)"/>
+<text x="640" y="470" text-anchor="middle" font-size="10" fill="#f85149">terminal_error(regular.rs:117)</text>
+</svg>
+</div>
+
+<!-- ======================== ④ 时序图 ======================== -->
+<h2 class="sec"><span class="no">④</span>单轮端到端时序:一次 shell 调用的完整旅程</h2>
+<div class="sub">选最有代表性的一条链:用户输入 → 采样 → 模型要跑 shell 命令 → 过闸 → 沙箱执行 → 输出回灌 → 模型继续,直到不需要工具为止。底部的三个虚线盒是这条主链上的三个著名岔路。</div>
+<div class="card">
+<svg viewBox="0 0 1160 660" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a371f7"/></marker>
+<marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#4493f8"/></marker>
+<marker id="arM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#db61a2"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#f85149"/></marker>
+<marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#39c5cf"/></marker>
+</defs>
+
+<rect x="40" y="16" width="150" height="44" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="115" y="43" text-anchor="middle" font-size="12.5" fill="#db61a2" font-weight="bold">用户</text>
+<rect x="250" y="16" width="150" height="44" rx="10" fill="#1c1233" stroke="#a371f7"/>
+<text x="325" y="43" text-anchor="middle" font-size="12.5" fill="#a371f7" font-weight="bold">core:run_turn</text>
+<rect x="470" y="16" width="150" height="44" rx="10" fill="#0a2124" stroke="#39c5cf" stroke-dasharray="6 4"/>
+<text x="545" y="43" text-anchor="middle" font-size="12" fill="#39c5cf" font-weight="bold">模型供应商(外部)</text>
+<rect x="680" y="16" width="150" height="44" rx="10" fill="#2d1214" stroke="#f85149"/>
+<text x="755" y="34" text-anchor="middle" font-size="11.5" fill="#f85149" font-weight="bold">护栏双链</text>
+<text x="755" y="52" text-anchor="middle" font-size="9" class="mut">策略 · 审批 · 沙箱</text>
+<rect x="890" y="16" width="150" height="44" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="965" y="43" text-anchor="middle" font-size="12.5" fill="#4493f8" font-weight="bold">工具执行</text>
+
+<line x1="115" y1="60" x2="115" y2="560" stroke="#8b949e" stroke-width="1" stroke-dasharray="4 5" opacity="0.5"/>
+<line x1="325" y1="60" x2="325" y2="560" stroke="#8b949e" stroke-width="1" stroke-dasharray="4 5" opacity="0.5"/>
+<line x1="545" y1="60" x2="545" y2="560" stroke="#8b949e" stroke-width="1" stroke-dasharray="4 5" opacity="0.5"/>
+<line x1="755" y1="60" x2="755" y2="560" stroke="#8b949e" stroke-width="1" stroke-dasharray="4 5" opacity="0.5"/>
+<line x1="965" y1="60" x2="965" y2="560" stroke="#8b949e" stroke-width="1" stroke-dasharray="4 5" opacity="0.5"/>
+
+<line x1="115" y1="96" x2="323" y2="96" stroke="#db61a2" stroke-width="1.8" marker-end="url(#arM)"/>
+<text x="220" y="88" text-anchor="middle" font-size="10.5">① 提交输入 Op(运行中可再插:steering)</text>
+<line x1="325" y1="140" x2="543" y2="140" stroke="#39c5cf" stroke-width="1.8" marker-end="url(#arC)"/>
+<text x="435" y="132" text-anchor="middle" font-size="10.5">② 采样请求:clone_history + 系统提示 + 工具 schema</text>
+<line x1="545" y1="184" x2="327" y2="184" stroke="#39c5cf" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+<text x="435" y="176" text-anchor="middle" font-size="10.5">③ 流式返回 ResponseItem(message / function_call)</text>
+<line x1="325" y1="228" x2="753" y2="228" stroke="#f85149" stroke-width="1.8" marker-end="url(#arR)"/>
+<text x="540" y="220" text-anchor="middle" font-size="10.5">④ 命令送审:execpolicy 判定(allow/deny/amend)+ SafetyCheck</text>
+<line x1="755" y1="272" x2="963" y2="272" stroke="#4493f8" stroke-width="1.8" marker-end="url(#arB)"/>
+<text x="860" y="264" text-anchor="middle" font-size="10.5">⑤ 放行:OS 沙箱内执行(Seatbelt / Landlock / bwrap)</text>
+<line x1="965" y1="316" x2="327" y2="316" stroke="#4493f8" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arB)"/>
+<text x="645" y="308" text-anchor="middle" font-size="10.5">⑥ 工具输出回灌 history(并行结果按序提交)</text>
+
+<path d="M 340 316 C 395 300, 395 155, 342 142" fill="none" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arP)"/>
+<text x="400" y="115" font-size="10.5" fill="#a371f7">⑦ needs_follow_up ✔ 回②</text>
+
+<line x1="545" y1="360" x2="327" y2="360" stroke="#39c5cf" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+<text x="435" y="352" text-anchor="middle" font-size="10.5">⑧ 纯 assistant 消息:无 function_call → 收尾</text>
+
+<rect x="265" y="388" width="130" height="48" rx="8" fill="#1c1233" stroke="#a371f7"/>
+<text x="330" y="408" text-anchor="middle" font-size="10.5" fill="#a371f7" font-weight="bold">⑨ stop hooks</text>
+<text x="330" y="426" text-anchor="middle" font-size="9.5" class="mut">通过 → break(653-706)</text>
+<line x1="325" y1="360" x2="325" y2="386" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<rect x="430" y="388" width="180" height="48" rx="8" fill="#2a1f0a" stroke="#d29922" stroke-dasharray="5 4"/>
+<text x="520" y="408" text-anchor="middle" font-size="10.5" fill="#d29922">⑩ post-turn compact</text>
+<text x="520" y="426" text-anchor="middle" font-size="9.5" class="mut">阈值触发 → 先压缩再结束(708-730)</text>
+<line x1="395" y1="412" x2="428" y2="412" stroke="#d29922" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+<line x1="325" y1="470" x2="117" y2="470" stroke="#a371f7" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arP)"/>
+<text x="220" y="462" text-anchor="middle" font-size="10.5">⑪ 事件流下行:turn/end(completed)</text>
+
+<rect x="20" y="580" width="353" height="64" rx="10" fill="#2d1622" stroke="#db61a2" stroke-dasharray="5 4"/>
+<text x="36" y="603" font-size="11" fill="#db61a2" font-weight="bold">④b AskUser 分支</text>
+<text x="36" y="625" font-size="10">暂停等人 → 批准:提权重跑 / 拒绝:错误回模型(protocol.rs:986)</text>
+<rect x="397" y="580" width="353" height="64" rx="10" fill="#2a1f0a" stroke="#d29922" stroke-dasharray="5 4"/>
+<text x="413" y="603" font-size="11" fill="#d29922" font-weight="bold">③b 流断线 / HTTP 错误</text>
+<text x="413" y="625" font-size="10">backoff 自动重试 + 采纳 server advice(responses_retry.rs:35-55)</text>
+<rect x="774" y="580" width="353" height="64" rx="10" fill="#2a1f0a" stroke="#d29922" stroke-dasharray="5 4"/>
+<text x="790" y="603" font-size="11" fill="#d29922" font-weight="bold">⑦b 上下文窗口超限</text>
+<text x="790" y="625" font-size="10">mid-turn auto-compact → 自动重试一次(turn.rs:760)</text>
+</svg>
+</div>
+
+<!-- ======================== ⑤ 机制特写1:审批双链 ======================== -->
+<h2 class="sec"><span class="no">⑤</span>机制特写 1:审批双链 — 应用层策略 × 内核强制</h2>
+<div class="sub">Codex 护栏的独特处:应用层审批之下还垫了一层 OS 强制沙箱。静态规则引擎先行,能放行的免审批直接进沙箱;沙箱放不下的才升级人工;规则甚至可以改写命令(amend)而不是简单放行或拒绝。</div>
+<div class="card">
+<svg viewBox="0 0 1160 430" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a371f7"/></marker>
+<marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#4493f8"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#f85149"/></marker>
+</defs>
+
+<rect x="20" y="50" width="180" height="70" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="110" y="75" text-anchor="middle" font-size="12" fill="#4493f8" font-weight="bold">shell / exec_command</text>
+<text x="110" y="93" text-anchor="middle" font-size="11">apply-patch 到达</text>
+<text x="110" y="110" text-anchor="middle" font-size="10.5" class="mut code">tools/handlers/</text>
+<rect x="230" y="50" width="220" height="70" rx="10" fill="#2d1214" stroke="#f85149"/>
+<text x="340" y="75" text-anchor="middle" font-size="12" fill="#f85149" font-weight="bold">① execpolicy 静态规则</text>
+<text x="340" y="93" text-anchor="middle" font-size="10.5">allow · deny · amend(可改写命令)</text>
+<text x="340" y="110" text-anchor="middle" font-size="10.5" class="mut code">exec_policy.rs:395-420</text>
+<rect x="480" y="50" width="210" height="70" rx="10" fill="#2d1214" stroke="#f85149"/>
+<text x="585" y="75" text-anchor="middle" font-size="12" fill="#f85149" font-weight="bold">② SafetyCheck 三态</text>
+<text x="585" y="93" text-anchor="middle" font-size="10.5">AutoApprove · AskUser · Reject</text>
+<text x="585" y="110" text-anchor="middle" font-size="10.5" class="mut code">safety.rs:19-23</text>
+<rect x="760" y="30" width="380" height="74" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="950" y="53" text-anchor="middle" font-size="12.5" fill="#4493f8" font-weight="bold">③a OS 沙箱内执行</text>
+<text x="950" y="73" text-anchor="middle" font-size="10.5">Seatbelt(.sbpl)· Landlock+bwrap · Windows 受限令牌</text>
+<text x="950" y="91" text-anchor="middle" font-size="10" class="mut">网络经 network-proxy 管控 · sandboxing/src/</text>
+<rect x="760" y="140" width="220" height="84" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="870" y="163" text-anchor="middle" font-size="12" fill="#db61a2" font-weight="bold">③b AskUser 审批</text>
+<text x="870" y="183" text-anchor="middle" font-size="10">untrusted · on-request(默认)</text>
+<text x="870" y="201" text-anchor="middle" font-size="10">granular · never</text>
+<text x="870" y="217" text-anchor="middle" font-size="10.5" class="mut code">protocol.rs:986-1008</text>
+<rect x="1000" y="150" width="140" height="40" rx="8" fill="#1c1233" stroke="#a371f7"/>
+<text x="1070" y="175" text-anchor="middle" font-size="10.5" fill="#a371f7">批准:提权重跑</text>
+<rect x="1000" y="220" width="140" height="56" rx="8" fill="#2d1214" stroke="#f85149"/>
+<text x="1070" y="243" text-anchor="middle" font-size="10.5" fill="#f85149">拒绝:错误回模型</text>
+<text x="1070" y="261" text-anchor="middle" font-size="9.5" class="mut">(模型自省后重试)</text>
+
+<line x1="200" y1="85" x2="228" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="450" y1="85" x2="478" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="690" y1="72" x2="758" y2="66" stroke="#4493f8" stroke-width="1.5" marker-end="url(#arB)"/>
+<text x="724" y="52" text-anchor="middle" font-size="10" fill="#4493f8">AutoApprove</text>
+<line x1="690" y1="100" x2="758" y2="172" stroke="#db61a2" stroke-width="1.5" marker-end="url(#arP)"/>
+<text x="712" y="146" text-anchor="middle" font-size="10" fill="#db61a2">AskUser</text>
+<line x1="1070" y1="150" x2="1070" y2="106" stroke="#a371f7" stroke-width="1.5" marker-end="url(#arP)"/>
+<path d="M 870 224 C 930 224, 950 246, 998 248" fill="none" stroke="#f85149" stroke-width="1.5" marker-end="url(#arR)"/>
+<path d="M 585 120 C 585 240, 800 268, 998 254" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arR)"/>
+<text x="760" y="282" text-anchor="middle" font-size="10" fill="#f85149">Reject</text>
+
+<rect x="20" y="300" width="353" height="110" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="40" y="326" font-size="12" fill="#4493f8" font-weight="bold">动态提权</text>
+<text x="40" y="348" font-size="10.5">模型可调 request_permissions 工具主动申请放宽</text>
+<text x="40" y="368" font-size="10.5">审批策略四态决定是否弹给用户</text>
+<text x="40" y="390" font-size="10.5" class="mut code">shell_spec.rs:180</text>
+<rect x="397" y="300" width="353" height="110" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="417" y="326" font-size="12" fill="#4493f8" font-weight="bold">补丁单独校验</text>
+<text x="417" y="348" font-size="10.5">apply-patch 走 PatchPolicyMatcher.can_write_path</text>
+<text x="417" y="368" font-size="10.5">本地匹配 + 配置策略双重确认</text>
+<text x="417" y="390" font-size="10.5" class="mut code">safety.rs:59-66</text>
+<rect x="774" y="300" width="353" height="110" rx="10" fill="#2d1622" stroke="#db61a2"/>
+<text x="794" y="326" font-size="12" fill="#db61a2" font-weight="bold">子代理永不审批</text>
+<text x="794" y="348" font-size="10.5">delegate 强制 approval_policy = never</text>
+<text x="794" y="368" font-size="10.5">后台代理无人可问,问也不应停</text>
+<text x="794" y="390" font-size="10.5" class="mut code">codex_delegate.rs:46,63-68</text>
+</svg>
+</div>
+
+<!-- ======================== ⑥ 机制特写2:code-mode ======================== -->
+<h2 class="sec"><span class="no">⑥</span>机制特写 2:code-mode — 把工具往返折叠成写代码</h2>
+<div class="sub">面对"N 个工具"的任务,Codex 提供了另一种范式:把工具目录编译成 TS 类型签名,让模型直接写一段 JS 在 V8 里一次跑完。N 次循环往返变 1 次,这是它和"每次一工具"框架最大的分野。</div>
+<div class="card">
+<svg viewBox="0 0 1160 400" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8b949e"/></marker>
+<marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#39c5cf"/></marker>
+</defs>
+<rect x="20" y="60" width="190" height="84" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="115" y="90" text-anchor="middle" font-size="12.5" fill="#4493f8" font-weight="bold">已注册工具 + MCP</text>
+<text x="115" y="112" text-anchor="middle" font-size="10.5">原本要 N 次独立往返调用</text>
+<text x="115" y="130" text-anchor="middle" font-size="9.5" class="mut">shell · fs · mcp · …</text>
+<rect x="240" y="60" width="230" height="84" rx="10" fill="#0a2124" stroke="#39c5cf"/>
+<text x="355" y="90" text-anchor="middle" font-size="12.5" fill="#39c5cf" font-weight="bold">工具目录 → TS 类型签名</text>
+<text x="355" y="112" text-anchor="middle" font-size="10.5">编译成单个 exec 工具的描述</text>
+<text x="355" y="130" text-anchor="middle" font-size="10.5" class="mut code">description.rs:20,286</text>
+<rect x="500" y="60" width="230" height="84" rx="10" fill="#0a2124" stroke="#39c5cf"/>
+<text x="615" y="90" text-anchor="middle" font-size="12.5" fill="#39c5cf" font-weight="bold">模型改写一段 JS</text>
+<text x="615" y="112" text-anchor="middle" font-size="10" class="code">await tools.exec_command(…)</text>
+<text x="615" y="130" text-anchor="middle" font-size="10.5" class="mut code">@exec pragma 控制流式让出</text>
+<rect x="760" y="60" width="200" height="84" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="860" y="90" text-anchor="middle" font-size="12.5" fill="#4493f8" font-weight="bold">V8 isolate 逐 cell 执行</text>
+<text x="860" y="112" text-anchor="middle" font-size="10.5">无 Node · 无 FS · 无网络</text>
+<text x="860" y="130" text-anchor="middle" font-size="10.5" class="mut code">v8_init.rs:5</text>
+<rect x="990" y="60" width="150" height="84" rx="10" fill="#0f1b2d" stroke="#4493f8"/>
+<text x="1065" y="90" text-anchor="middle" font-size="12.5" fill="#4493f8" font-weight="bold">结果回收</text>
+<text x="1065" y="112" text-anchor="middle" font-size="10" class="code">text / image</text>
+<text x="1065" y="130" text-anchor="middle" font-size="10" class="code">store / load / exit</text>
+<line x1="210" y1="102" x2="238" y2="102" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="470" y1="102" x2="498" y2="102" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="730" y1="102" x2="758" y2="102" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="960" y1="102" x2="988" y2="102" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ar)"/>
+
+<rect x="20" y="180" width="1120" height="64" rx="10" fill="#0f2318" stroke="#3fb950" stroke-dasharray="6 4"/>
+<text x="580" y="206" text-anchor="middle" font-size="13" fill="#3fb950" font-weight="bold">核心收益:N 次工具往返 → 1 次写代码调用,循环开销与 token 往返大幅下降</text>
+<text x="580" y="230" text-anchor="middle" font-size="11" class="mut">yield_control 支持流式让出 —— 长脚本执行中循环仍可注入新输入或取消</text>
+
+<rect x="20" y="280" width="353" height="90" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="40" y="306" font-size="12" font-weight="bold">宿主桥 code-mode-host</text>
+<text x="40" y="328" font-size="10.5" class="mut">进程内 owned / gRPC 远程两种提供方</text>
+<text x="40" y="348" font-size="10.5" class="mut code">code-mode/src/lib.rs:3-9</text>
+<rect x="397" y="280" width="353" height="90" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="417" y="306" font-size="12" font-weight="bold">全局运行时 API</text>
+<text x="417" y="328" font-size="10.5" class="mut code">text · image · store · load · exit · yield_control</text>
+<text x="417" y="348" font-size="10.5" class="mut">工具以 async 函数形态暴露给 JS</text>
+<rect x="774" y="280" width="353" height="90" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="794" y="306" font-size="12" font-weight="bold">适用面</text>
+<text x="794" y="328" font-size="10.5" class="mut">批量文件处理、多工具管道等编排型任务</text>
+<text x="794" y="348" font-size="10.5" class="mut">需要"一次决策管一群调用"的场景收益最大</text>
+</svg>
+</div>
+
+<!-- ======================== ⑦ 对照表 ======================== -->
+<h2 class="sec"><span class="no">⑦</span>机制 → 代码位置对照表</h2>
+<div class="sub">所有行号在 master 快照(2026-09-30)上逐一核验过,可跳回源码对照。</div>
+<div class="card">
+<table>
+<tr><th style="width:190px">机制</th><th style="width:330px">位置(文件:行号)</th><th>一句话</th></tr>
+<tr><td>任务外环循环</td><td class="code">core/src/tasks/regular.rs:104-122</td><td>run_turn → terminal_error 判定 → pending_input 判定</td></tr>
+<tr><td>run_turn step 内环</td><td class="code">core/src/session/turn.rs:163,426</td><td>采样 → 工具 → needs_follow_up 的心跳环</td></tr>
+<tr><td>steering 输入邮箱</td><td class="code">turn.rs:430-437 · session/input_queue.rs</td><td>运行中插入的新输入下一 step 消化,不打断循环</td></tr>
+<tr><td>采样请求与重试</td><td class="code">turn.rs:2618 · responses_retry.rs:35-55</td><td>HTTP/流断线 backoff 重试 + server advice</td></tr>
+<tr><td>工具并行运行时</td><td class="code">turn.rs:56,1638(tools/parallel)</td><td>ToolCallRuntime 并行执行 + 按序提交</td></tr>
+<tr><td>续跑判定</td><td class="code">turn.rs:540-581</td><td>needs_follow_up = 模型要求 or 有 pending 输入</td></tr>
+<tr><td>stop hooks</td><td class="code">turn.rs:653-706,755</td><td>block 注入提示续跑 / stop 强停收尾</td></tr>
+<tr><td>post-turn 压缩</td><td class="code">turn.rs:708-730 · compact.rs:109</td><td>阈值百分比触发,turn 结束时收尾压缩</td></tr>
+<tr><td>mid-turn 压缩</td><td class="code">turn.rs:760</td><td>ContextWindowExceeded 兜底,自动重试一次</td></tr>
+<tr><td>审批策略四态</td><td class="code">protocol/src/protocol.rs:986-1008</td><td>untrusted / on-request(默认)/ granular / never</td></tr>
+<tr><td>SafetyCheck 三态</td><td class="code">core/src/safety.rs:19-23</td><td>AutoApprove / AskUser / Reject</td></tr>
+<tr><td>execpolicy 规则判定</td><td class="code">core/src/exec_policy.rs:395-420</td><td>allow / deny / amend(amend 可改写命令)</td></tr>
+<tr><td>补丁写路径校验</td><td class="code">core/src/safety.rs:59-66</td><td>PatchPolicyMatcher.can_write_path 双重确认</td></tr>
+<tr><td>子代理免审批</td><td class="code">core/src/codex_delegate.rs:46,63-68</td><td>delegate 强制 approval_policy=never</td></tr>
+<tr><td>spawn_agent 工具</td><td class="code">tools/handlers/multi_agents_spec.rs:85,327</td><td>完整子 Codex 线程 + 消息板通信</td></tr>
+<tr><td>协议钉死 Responses</td><td class="code">model-provider-info/src/lib.rs:97-113</td><td>wire_api="chat" 直接解析报错</td></tr>
+<tr><td>内置 provider 五家</td><td class="code">model-provider-info/src/lib.rs:652-684</td><td>openai · bedrock · bedrock-runtime · ollama · lmstudio</td></tr>
+<tr><td>rollout 会话日志</td><td class="code">history/src/lib.rs:350-378</td><td>append-only JSONL + InitialHistory::{Resumed,Forked}</td></tr>
+<tr><td>exec 进程内直启</td><td class="code">exec/src/lib.rs:16-21</td><td>InProcessAppServerClient,不走 socket</td></tr>
+<tr><td>TS SDK 底座</td><td class="code">sdk/typescript/src/exec.ts:92-196</td><td>spawn codex exec 子进程读 stdout JSONL</td></tr>
+<tr><td>OS 沙箱模块</td><td class="code">sandboxing/src/(seatbelt/landlock/bwrap/manager)</td><td>macOS/Linux/Windows 三平台内核级强制</td></tr>
+<tr><td>code-mode V8</td><td class="code">code-mode-runtime/src/v8_init.rs:5 · description.rs:20</td><td>exec 工具 = V8 isolate + tools 全局</td></tr>
+</table>
+<div class="note">静态分析,未运行 · 基于 openai/codex master 快照(2026-09-30,workspace version 0.0.0,≈0.16x 线)· 行号以该快照为准,其他版本可能漂移。</div>
+</div>
+
+</div>
+</body>
+</html>

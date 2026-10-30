@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>八家 Agent 框架 · 可点击详解版(点格子看知识+优缺点)</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0b1220; font-family:"Microsoft YaHei","PingFang SC",sans-serif; color:#e2e8f0; }
+  .slide { width:1600px; margin:20px auto; background:linear-gradient(160deg,#0f172a,#111c33);
+           border:1px solid #1e293b; border-radius:16px; padding:32px 44px; position:relative; }
+  .slide::before { content:""; position:absolute; top:0; left:0; right:0; height:4px;
+                   background:linear-gradient(90deg,#fbbf24,#38bdf8,#a78bfa,#d97757); }
+  h1 { font-size:30px; margin-bottom:4px; } .sub { color:#94a3b8; font-size:14px; margin-bottom:14px; line-height:1.6; }
+  .card { background:#16213a; border:1px solid #24314f; border-radius:12px; padding:14px 16px; }
+  .muted { color:#64748b; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { border:1px solid #24314f; padding:5px 7px; font-size:11.8px; text-align:left; vertical-align:top; }
+  th { background:#1b2742; }
+  td.cell { cursor:pointer; transition:background .12s; }
+  td.cell:hover { background:#1e2c4a; }
+  td.rh { cursor:pointer; background:#1b2742; font-weight:700; }
+  td.rh:hover { background:#24325c; }
+  td.on { outline:2px solid #fbbf24; outline-offset:-2px; }
+  .hint { background:rgba(251,191,36,.08); border:1px dashed rgba(251,191,36,.4); border-radius:10px;
+          padding:8px 12px; font-size:13px; color:#fde68a; margin-bottom:14px; line-height:1.7; }
+  /* 抽屉面板 */
+  #panel { position:fixed; top:0; right:-760px; width:720px; height:100vh; overflow-y:auto; z-index:50;
+           background:#0f172a; border-left:2px solid #fbbf24; box-shadow:-12px 0 40px rgba(0,0,0,.6);
+           transition:right .22s ease; padding:24px 26px 40px; }
+  #panel.open { right:0; }
+  #panel h2 { font-size:21px; color:#fbbf24; margin-bottom:2px; }
+  #panel h3 { font-size:15px; color:#38bdf8; margin:18px 0 8px; border-left:4px solid #38bdf8; padding-left:8px; }
+  #panel h3.gold { color:#fbbf24; border-color:#fbbf24; }
+  #panel .close { position:absolute; top:14px; right:16px; background:#1e293b; color:#e2e8f0; border:1px solid #334155;
+                  border-radius:8px; padding:4px 12px; cursor:pointer; font-size:13px; }
+  #panel .close:hover { background:#334155; }
+  #panel .body { font-size:13.8px; line-height:1.85; color:#cbd5e1; }
+  #panel .body b { color:#e2e8f0; }
+  #panel .body code { background:#1e293b; border:1px solid #334155; border-radius:4px; padding:0 5px;
+                      font-family:Consolas,monospace; font-size:12.3px; color:#93c5fd; }
+  #panel .anchor { display:block; }
+  #panel .anchor.hl { background:rgba(251,191,36,.14); outline:1px solid rgba(251,191,36,.5); border-radius:6px; padding:6px 8px; }
+  #panel .fwcard { background:#16213a; border:1px solid #24314f; border-radius:10px; padding:12px 14px; margin-top:8px; }
+  #panel .fwcard ul { margin:6px 0 6px 18px; }
+  #panel .fwcard li { margin:4px 0; }
+  .pro { color:#34d399; } .con { color:#f87171; }
+  .oneline { margin-top:8px; padding:8px 10px; background:rgba(56,189,248,.08); border-left:3px solid #38bdf8;
+             border-radius:0 6px 6px 0; color:#bae6fd; }
+  .note { color:#94a3b8; font-size:12px; font-style:italic; }
+  .fix { color:#fde68a; }
+  .star-table td { cursor:pointer; }
+  .star-table td:hover { background:#1e2c4a; }
+  .lk { color:#7dd3fc; cursor:pointer; text-decoration:underline dotted rgba(125,211,252,.6); text-underline-offset:3px; }
+  .lk:hover { color:#fde68a; text-decoration-color:#fde68a; }
+  .footer { margin-top:14px; color:#475569; font-size:12px; line-height:1.7; }
+</style>
+</head>
+<body>
+<section class="slide">
+  <h1>八家 Agent 框架 · 可点击详解版</h1>
+  <div class="sub">Pi · deepagents · LangGraph · DeepSeek Harness · Hermes · Claude Agent SDK · Codex · OpenAI Agents SDK ｜ 每个格子都能点:右侧弹出「这个维度是什么」+「这家框架的优缺点」｜ 点击会写入地址栏 hash,下次打开带 #d3-f-cx 这种地址会直接定位到上次看的地方</div>
+  <div class="hint">🖱️ <b>怎么用:</b>点下面矩阵里的<b>任意格子</b> → 右侧抽屉显示「行维度完整解释」(你点的那格会高亮)+「该框架的优缺点卡」;点<b>行首维度名</b>看整行知识;点<b>列头框架名</b>直接看该家优缺点;点<b>底部星表</b>任意行也可跳转。<b>Esc</b> 或「关闭」收起。</div>
+
+  <div class="card" style="margin-bottom:14px; padding:12px">
+    <div style="font-size:16px;font-weight:700;color:#fbbf24;margin-bottom:8px">⚡ 主要差距矩阵 —— 同一骨架,八种长法(横读=一个问题业界的全部答案;全表可点击)</div>
+    <table style="table-layout:fixed" id="matrix">
+      <tr>
+        <th style="width:78px">维度</th>
+        <th class="cell" data-fw="lg" style="color:#38bdf8;cursor:pointer">LangGraph<br>裸核</th><th class="cell" data-fw="da" style="color:#38bdf8;cursor:pointer">deep<br>agents</th><th class="cell" data-fw="os" style="color:#34d399;cursor:pointer">OpenAI<br>SDK</th><th class="cell" data-fw="pi" style="color:#a78bfa;cursor:pointer">Pi</th>
+        <th class="cell" data-fw="dsh" style="color:#60a5fa;cursor:pointer">DSH</th><th class="cell" data-fw="hm" style="color:#f59e0b;cursor:pointer">Hermes</th><th class="cell" data-fw="cc" style="color:#d97757;cursor:pointer">Claude<br>SDK</th><th class="cell" data-fw="cx" style="color:#94a3b8;cursor:pointer">Codex</th>
+      </tr>
+      <tr><td class="rh" data-dim="1">主循环</td>
+        <td class="cell" data-dim="1" data-fw="lg">Pregel 图 superstep</td><td class="cell" data-dim="1" data-fw="da">图+中间件栈</td><td class="cell" data-dim="1" data-fw="os">单 while·四态</td><td class="cell" data-dim="1" data-fw="pi">双 while·9 回调</td><td class="cell" data-dim="1" data-fw="dsh">三层 while·waterfall</td><td class="cell" data-dim="1" data-fw="hm">phase 状态机</td><td class="cell" data-dim="1" data-fw="cc">闭源·SDK=消息泵</td><td class="cell" data-dim="1" data-fw="cx">内环+外环双 loop</td></tr>
+      <tr><td class="rh" data-dim="2">扩展点</td>
+        <td class="cell" data-dim="2" data-fw="lg">图节点/Channel</td><td class="cell" data-dim="2" data-fw="da">middleware wrap_*</td><td class="cell" data-dim="2" data-fw="os">对象配置+Guardrail</td><td class="cell" data-dim="2" data-fw="pi">仅 9 个回调</td><td class="cell" data-dim="2" data-fw="dsh">Cordis 事件拦截</td><td class="cell" data-dim="2" data-fw="hm">改源码(mixin 类)</td><td class="cell" data-dim="2" data-fw="cc">hooks+MCP 挂钩子</td><td class="cell" data-dim="2" data-fw="cx">编译进 Rust 核</td></tr>
+      <tr><td class="rh" data-dim="3">turn 上限</td>
+        <td class="cell" data-dim="3" data-fw="lg">25</td><td class="cell" data-dim="3" data-fw="da">25<span class="fix">*</span>(自设9999)</td><td class="cell" data-dim="3" data-fw="os"><b>10</b></td><td class="cell" data-dim="3" data-fw="pi" style="color:#64748b">无</td><td class="cell" data-dim="3" data-fw="dsh" style="color:#64748b">无</td><td class="cell" data-dim="3" data-fw="hm" style="color:#64748b">无限</td><td class="cell" data-dim="3" data-fw="cc">flag 转发闭源</td><td class="cell" data-dim="3" data-fw="cx" style="color:#64748b">无</td></tr>
+      <tr><td class="rh" data-dim="4">子代理</td>
+        <td class="cell" data-dim="4" data-fw="lg">task 隔离派发</td><td class="cell" data-dim="4" data-fw="da">同基座 task 工具</td><td class="cell" data-dim="4" data-fw="os">handoff+as_tool</td><td class="cell" data-dim="4" data-fw="pi" style="color:#64748b">✗ 嵌套调用</td><td class="cell" data-dim="4" data-fw="dsh">多后端可外派竞品</td><td class="cell" data-dim="4" data-fw="hm">delegate+阻断集</td><td class="cell" data-dim="4" data-fw="cc">独立会话可 resume</td><td class="cell" data-dim="4" data-fw="cx">全功能子线程·审批关</td></tr>
+      <tr><td class="rh" data-dim="5">持久化</td>
+        <td class="cell" data-dim="5" data-fw="lg">checkpointer 快照</td><td class="cell" data-dim="5" data-fw="da">同基座+files 通道</td><td class="cell" data-dim="5" data-fw="os">RunState 序列化</td><td class="cell" data-dim="5" data-fw="pi">JSONL 树·零复制</td><td class="cell" data-dim="5" data-fw="dsh">事件溯源 JSONL</td><td class="cell" data-dim="5" data-fw="hm">SQLite WAL+FTS5</td><td class="cell" data-dim="5" data-fw="cc">闭源 jsonl+镜像</td><td class="cell" data-dim="5" data-fw="cx">rollout JSONL+DB</td></tr>
+      <tr><td class="rh" data-dim="6">压缩</td>
+        <td class="cell" data-dim="6" data-fw="lg" style="color:#64748b">✗ 自己造</td><td class="cell" data-dim="6" data-fw="da">✓ Summarization<span class="fix">*</span></td><td class="cell" data-dim="6" data-fw="os" style="color:#64748b">✗ 要自己弄</td><td class="cell" data-dim="6" data-fw="pi">✓ 阈值触发</td><td class="cell" data-dim="6" data-fw="dsh">✓ 0.8×窗口</td><td class="cell" data-dim="6" data-fw="hm">✓ 每轮预检门</td><td class="cell" data-dim="6" data-fw="cc">✓ 闭源自动</td><td class="cell" data-dim="6" data-fw="cx">✓ mid/post 双时机</td></tr>
+      <tr><td class="rh" data-dim="7">安全</td>
+        <td class="cell" data-dim="7" data-fw="lg">interrupt HITL</td><td class="cell" data-dim="7" data-fw="da">FS权限+HITL<span class="fix">*</span>(shell除外)</td><td class="cell" data-dim="7" data-fw="os">Guardrail 熔断</td><td class="cell" data-dim="7" data-fw="pi" style="color:#64748b">✗ 交给容器</td><td class="cell" data-dim="7" data-fw="dsh">审批+三档沙箱<span class="fix">*</span></td><td class="cell" data-dim="7" data-fw="hm">审批门(自认启发式)</td><td class="cell" data-dim="7" data-fw="cc">6 模式+canUseTool</td><td class="cell" data-dim="7" data-fw="cx">审批+OS 沙箱双链</td></tr>
+      <tr><td class="rh" data-dim="8">记忆</td>
+        <td class="cell" data-dim="8" data-fw="lg">Store/虚拟 FS 自建</td><td class="cell" data-dim="8" data-fw="da">MemoryMiddleware<span class="fix">*</span></td><td class="cell" data-dim="8" data-fw="os" style="color:#64748b">✗ 无记忆原语</td><td class="cell" data-dim="8" data-fw="pi" style="color:#64748b">✗</td><td class="cell" data-dim="8" data-fw="dsh">skill 注册表</td><td class="cell" data-dim="8" data-fw="hm">学习循环自动沉淀</td><td class="cell" data-dim="8" data-fw="cc">文件约定 memory</td><td class="cell" data-dim="8" data-fw="cx">后台提取流水线</td></tr>
+      <tr><td class="rh" data-dim="9">模型接入</td>
+        <td class="cell" data-dim="9" data-fw="lg">600+ 构造期</td><td class="cell" data-dim="9" data-fw="da">同基座+Profile注册</td><td class="cell" data-dim="9" data-fw="os">Responses 形状</td><td class="cell" data-dim="9" data-fw="pi">按协议 42 模型</td><td class="cell" data-dim="9" data-fw="dsh">插件·每请求路由</td><td class="cell" data-dim="9" data-fw="hm">运行时热切换链</td><td class="cell" data-dim="9" data-fw="cc">绑 Claude·env 换</td><td class="cell" data-dim="9" data-fw="cx">钉死 Responses</td></tr>
+    </table>
+    <div class="note" style="margin-top:6px"><span class="fix">* / 黄字</span> = 依 2026-10-08 deepagents 审计与 2026-10-01 DSH 审计修正(原速览表该两格基于传闻,已过时)。标注"来自笔记"的内容为上轮人工拆解,置信度低于本轮行级审计。</div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px; padding:12px">
+    <div style="font-size:15px;font-weight:700;color:#34d399;margin-bottom:8px">📋 优缺点总表(点行跳转该家详解)</div>
+    <table class="star-table">
+      <tr><th style="width:130px">框架</th><th>改循环容易度</th><th>省心度</th><th>安全默认</th><th>可审计性</th></tr>
+      <tr data-fw="lg"><td style="color:#38bdf8;cursor:pointer">① LangGraph</td><td>★★★★★</td><td>★☆</td><td>★☆(自己搭)</td><td>★★★★</td></tr>
+      <tr data-fw="da"><td style="color:#38bdf8;cursor:pointer">② deepagents</td><td>★★★★</td><td>★★★</td><td>★★</td><td>★★★</td></tr>
+      <tr data-fw="os"><td style="color:#34d399;cursor:pointer">③ OpenAI SDK</td><td>★★(别改)</td><td>★★★★</td><td>★★☆</td><td>★★★</td></tr>
+      <tr data-fw="pi"><td style="color:#a78bfa;cursor:pointer">④ Pi</td><td>★★★(插槽内)</td><td>★★</td><td>★☆(自己搭)</td><td>★★★★★</td></tr>
+      <tr data-fw="dsh"><td style="color:#60a5fa;cursor:pointer">⑤ DSH</td><td>★★★★(事件)</td><td>★★★</td><td>★★☆</td><td>★★</td></tr>
+      <tr data-fw="hm"><td style="color:#f59e0b;cursor:pointer">⑥ Hermes</td><td>★☆(改源码)</td><td>★★★★</td><td>★★☆(默认危险)</td><td>★☆</td></tr>
+      <tr data-fw="cc"><td style="color:#d97757;cursor:pointer">⑦ Claude SDK</td><td>☆(黑盒)</td><td>★★★★★</td><td>★★★☆(黑盒保证)</td><td>★</td></tr>
+      <tr data-fw="cx"><td style="color:#94a3b8;cursor:pointer">⑧ Codex</td><td>★☆(焊死)</td><td>★★★★</td><td>★★★★★</td><td>★★★</td></tr>
+    </table>
+    <div style="margin-top:8px;font-size:13px;line-height:1.7">规律就一条:"可改造性"和"省心/安全"基本是跷跷板——⑦⑧ 把循环锁得最死所以最省心最安全,①④ 把循环交出来所以最灵活但什么都要自己负责。选型前先问自己:你要的是<b style="color:#fbbf24">"用"</b>(选右边的),还是<b style="color:#fbbf24">"改"</b>(选左边的)?</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:#fbbf24;margin-bottom:8px">三大差异轴(看懂这三条 = 看懂全部差距)</div>
+      <div class="axis" style="border-left:4px solid #fbbf24;padding-left:12px;margin-bottom:10px;font-size:13.5px;line-height:1.7"><b>轴 1 · 循环控制权</b>(改行为有多难):<br>
+        <span class="lk" data-hash="#fw-lg">LangGraph 图可编程</span> &gt; <span class="lk" data-hash="#fw-da">deepagents 中间件</span> &gt; <span class="lk" data-hash="#fw-dsh">dsh 事件可拦</span> &gt; <span class="lk" data-hash="#fw-pi">Pi 仅回调</span> &gt; <span class="lk" data-hash="#fw-hm">Hermes</span>/<span class="lk" data-hash="#fw-cx">Codex</span> 编译写死 &gt; <span class="lk" data-hash="#fw-cc">Claude SDK 黑盒挂钩子</span></div>
+      <div class="axis" style="border-left:4px solid #fbbf24;padding-left:12px;margin-bottom:10px;font-size:13.5px;line-height:1.7"><b>轴 2 · 历史落在哪</b>(可靠性与可恢复性):<br>
+        内存数组(<span class="lk" data-hash="#fw-pi">Pi</span>) → append 日志(<span class="lk" data-hash="#fw-dsh">dsh</span>/<span class="lk" data-hash="#fw-cx">Codex</span>) → SQLite(<span class="lk" data-hash="#fw-hm">Hermes</span>) → 闭源(<span class="lk" data-hash="#fw-cc">Claude</span>)——越往右越可恢复、可审计;快照系(<span class="lk" data-hash="#fw-lg">LangGraph</span>/<span class="lk" data-hash="#fw-os">OpenAI SDK</span>)自带断点复活</div>
+      <div class="axis" style="border-left:4px solid #fbbf24;padding-left:12px;margin-bottom:0;font-size:13.5px;line-height:1.7"><b>轴 3 · 安全投入</b>(审批+沙箱几层):<span class="lk" data-hash="#fw-cx">Codex 双链独一档</span> &gt; <span class="lk" data-hash="#fw-cc">Claude 六模式</span> &gt; <span class="lk" data-hash="#fw-dsh">dsh</span>/<span class="lk" data-hash="#fw-hm">Hermes</span> 自认启发式 &gt; <span class="lk" data-hash="#fw-pi">Pi 整体外包容器</span></div>
+    </div>
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:#38bdf8;margin-bottom:8px">🧭 选型一句话(简介版 · 点行跳转该家详解)</div>
+      <table>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#38bdf8">学原理/深度定制</b></td><td style="border:none" class="lk" data-hash="#fw-lg">LangGraph 裸核(全可编程,代价是样样自己造)</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#38bdf8">快速出产品</b></td><td style="border:none" class="lk" data-hash="#fw-da">deepagents(官方预组装,todo/子代理/FS 开箱即用)</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#94a3b8">编码 Agent 主力</b></td><td style="border:none"><span class="lk" data-hash="#fw-cx">Codex(审批+OS 沙箱双链)</span> 或 <span class="lk" data-hash="#fw-cc">Claude SDK(生态最熟)</span></td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#f59e0b">多源采集/个人助理</b></td><td style="border:none" class="lk" data-hash="#fw-hm">Hermes(多供应商热切换+自动学习循环)</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#60a5fa">插件化/多路由</b></td><td style="border:none" class="lk" data-hash="#fw-dsh">DeepSeek Harness(一切皆插件,国产背景)</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#a78bfa">极简/教学</b></td><td style="border:none" class="lk" data-hash="#fw-pi">Pi(140 行读完主循环)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px; padding:14px 16px">
+    <div style="font-size:16px;font-weight:700;color:#fbbf24;margin-bottom:10px">🚀 进化版选型指南(2026-10 两轮审计后 · 蓝字可点击跳详情)</div>
+    <div style="font-size:13.8px;line-height:1.95;color:#cbd5e1">
+      <p style="margin-bottom:8px"><b style="color:#a78bfa">学 agent,从 Pi 开始</b>——<span class="lk" data-hash="#fw-pi">140 行读完整个循环</span>,看懂了它就看懂了所有 agent 的骨架。</p>
+      <p style="margin-bottom:8px"><b style="color:#94a3b8">写代码,用 Codex 或 Claude Code</b>——产品级的安全兜底,开箱即干:<span class="lk" data-hash="#fw-cx">Codex(审批+OS 沙箱双链)</span> / <span class="lk" data-hash="#fw-cc">Claude Code(六种权限模式)</span>。</p>
+      <p style="margin-bottom:4px"><b style="color:#34d399">做业务 agent,用框架造、让 Codex/Claude 帮你写</b>,框架按流程复杂度选:</p>
+      <ul style="margin:4px 0 10px 22px">
+        <li>简单的领域助手 → <span class="lk" data-hash="#fw-os">OpenAI Agents SDK</span>(注意它无记忆原语、无自动压缩,要自己补;详见 <span class="lk" data-hash="#d6-f-os">压缩</span> / <span class="lk" data-hash="#d8-f-os">记忆</span> 两行);</li>
+        <li>多 agent 协作、关键节点要人审批的工作流 → <span class="lk" data-hash="#fw-lg">LangGraph</span>(checkpoint/interrupt/resume 是审批流最好底座,代价是学懂图模型+安全层自己搭,见 <span class="lk" data-hash="#d7-f-lg">安全行</span>);</li>
+        <li>想快速起步 → <span class="lk" data-hash="#fw-da">deepagents</span>——它是"LangGraph 预组装+一切皆中间件",压缩、记忆注入、文件权限都给你装好了,600+ 模型即插即用,但<b style="color:#fde68a">三件事要自己把关</b>:shell 执行默认无隔离、权限只覆盖内置文件工具、跨会话长期记忆要自己沉淀(见 <span class="lk" data-hash="#d7-f-da">安全行</span>)。</li>
+      </ul>
+      <p style="margin-bottom:8px"><b style="color:#f59e0b">Hermes 和 DeepSeek Harness 是产品不是框架</b>:<span class="lk" data-hash="#fw-hm">Hermes</span> 反射状态机没法静态调试、只能跑起来找错,但多供应商热切换+自动学习循环,天然是个人助理;<span class="lk" data-hash="#fw-dsh">DSH</span> 一切皆插件、可派发给不同 agent,事件溯源 JSONL 让每次 run 可完整回放——但它是 TypeScript 栈,Python 程序接它要写桥接、养两套环境,所以对 Python 团队它只适合当<b>素材库</b>(偷它的事件日志和派发设计),不适合当地基。</p>
+      <p style="margin-bottom:0"><b style="color:#f87171">最后两条铁律:</b>① <span class="lk" data-hash="#fw-cx">Codex</span> 钉死 Responses 协议,接国产模型靠厂商兼容端点,协议通了但<b>答案质量=模型能力×调校匹配×翻译保真度,三者相乘</b>(详见 <span class="lk" data-hash="#d9-f-cx">模型接入行</span>);② 所有框架类默认全放行,上线前先给工具执行套容器或审批层——<b>选错框架顶多返工,安全默认出事是数据泄露</b>(详见 <span class="lk" data-hash="#d7">安全行</span>)。</p>
+    </div>
+  </div>
+
+  <div class="footer" style="margin-top:14px; color:#475569; font-size:12px; line-height:1.7">证据坐标:harness-research/ 各仓源码 ｜ 深链示例:#d1-f-cx=主循环×Codex、#fw-pi=Pi 优缺点 ｜ 原速览表(sdk-八家速览.html)未改动,本页为其可点击增强版</div>
+</section>
+
+<div id="panel">
+  <button class="close" onclick="closePanel()">关闭 (Esc)</button>
+  <div id="pcontent" class="body"></div>
+</div>
+
+<script>
+var FW = {
+  lg:{n:"① LangGraph(裸核)",c:"#38bdf8",
+    pro:["循环结构随便改:加分支、加并行、加绕路,都是\u201c改图\u201d,不用动循环代码;","天生适合暂停/恢复:每圈都存档(checkpoint),断点复活、时间旅行是标配;","通用:同一个引擎能跑 agent、能跑数据处理、能跑任何流程。"],
+    con:["它不懂 agent:\u201c模型没工具调用就停\u201d这种常识,引擎不管——你要自己画 END、自己处理,全靠组装;","心智负担重:channel、版本、触发……概念多,新手容易画出死循环(默认 25 圈熔断就是为这个);","缺省行为少:压缩、权限、重试全没有,样样自己造。"],
+    one:"给了你最大的自由,也给了你最大的作业量。适合要深度定制的人。"},
+  da:{n:"② deepagents(图+中间件栈)",c:"#38bdf8",
+    pro:["开箱即用:待办清单/子代理/文件系统预装好;","想改行为有中间件这层\u201c包装纸\u201d(wrap_model_call 等),不用碰图;","10-08 审计补充:上下文工程是真实增量——SummarizationMiddleware 压缩+历史 offload、20k token 工具结果自动落盘、溢出降级重试。"],
+    con:["两头不占:比①多一层封装约束,比真正的产品少打磨;","10-08 审计实锤:LocalShellBackend 用 shell=True 直跑宿主无隔离(文档自认);文件权限只覆盖内置文件工具,自定义工具和 shell 全部绕过;","recursion_limit 硬编码 9999(graph.py:1004)——比基座默认 25 松 400 倍,成本刹车几乎没有;","中间件能改的=封装暴露的,更深的地方还是得下沉到①去改图。"],
+    one:"官方预组装套餐,快,但\u201c预组装\u201d和\u201c可定制\u201d的交界处容易卡住,安全要自己补 shell 和自定义工具两层。适合快速出原型。"},
+  os:{n:"③ OpenAI Agents SDK(单 while·四态)",c:"#34d399",
+    pro:["最好懂好测:整个控制流就是四个分支,单测好写,行为可预测;","四态里\u201c暂停\u201d是一等公民:审批中断后序列化快照(RunState)、回来续跑,做得很干净;","纯库,嵌进任何 Python 应用无负担。"],
+    con:["审计实锤:主循环塞在约 1660 行的巨型函数里——对外四态清晰,对内改一行牵全身;","无默认上下文预算:长对话不自动压缩,窗口爆了是你的事;","无记忆原语:Session 只存消息历史,跨会话长期记忆要自己接;","非沙箱工具默认在宿主进程裸跑,安全默认值松。"],
+    one:"接口设计满分,实现可维护性扣分。适合当库用,别想着改它内核。"},
+  pi:{n:"④ Pi(双 while·9 回调)",c:"#a78bfa",
+    pro:["全场最可审计:140 行读完整个循环,出问题一眼定位;","9 个插槽覆盖最常改的位置,不用碰内核就能改大半行为;","中途插话(steering)是一等公民——运行中纠正它,不用等一轮跑完。"],
+    con:["内核零策略是双刃剑:没有权限、没有预算、没有压缩——安全网全靠自己织(bash 工具连默认超时都没有,审计实锤);","9 个插座之外一寸不能动,需求落在插座外就只能改源码;","没有子代理、没有 MCP,多智能体和生态扩展全自助。"],
+    one:"透明到解剖级,但买回来的是\u201c半成品+说明书\u201d。适合学习原理、自建平台的人。"},
+  dsh:{n:"⑤ DeepSeek Harness(三层 while·waterfall)",c:"#60a5fa",
+    pro:["三层分工(会话/轮/步)让\u201c在哪一层拦截\u201d很清晰;","事件驱动扩展面几乎无限,任何动作都能被插件接住;","10-01 审计实测:授权是双层(tools/pre-execute 瀑布+单调 guard,任何 guard 可拒、无人能强行放行),沙箱三档且 fail-closed(档位不可用抛 SANDBOX_UNAVAILABLE 而非裸跑)——比速览表\u201c弱沙箱\u201d强,与 Codex 同哲学;","事件溯源 JSONL:每次 run 可完整回放,调试方便。"],
+    con:["事件驱动的老毛病:控制流散落在几十个监听器里,没人能一眼说清\u201c一次调用经过了谁\u201d——排障靠追事件;","插件之间互相影响(监听顺序、短路),组合越多越不可预测;","TypeScript 栈:Python 程序接它要写桥接、养两套环境(对 Python 团队\u201c地基三条\u201d全不中,更适合当素材库偷设计)。"],
+    one:"扩展性最开放,可推断性最差。适合插件生态玩法与事件溯源爱好者;Python 团队慎当地基。"},
+  hm:{n:"⑥ Hermes(phase 状态机)",c:"#f59e0b",
+    pro:["约 20 个工位各自独立,加/删一个环节不影响别人,功能扩展友好;","功能最全:预算、审批、压缩、学习循环全织进流水线,单进程产品开箱能跑;","\u201c执行前强制落库\u201d是全场最扎实的崩溃一致性设计;","多供应商热切换+自动学习循环,天然适合个人助理。"],
+    con:["审计实锤的最大痛点:工位之间靠反射读写共享账本——静态读代码看不出谁改了哪个状态,出了 bug 要靠跑起来追;","20 个工位+大账本(约 40 字段)的隐式契约,新人上手曲线陡;","进程内防线自认\u201c非隔离\u201d,默认后端直跑宿主机,安全默认值危险。"],
+    one:"功能最全的流水线,但机器罩子焊死了、看不见里面齿轮怎么咬合。适合当产品用,不适合当底座改。"},
+  cc:{n:"⑦ Claude Agent SDK(闭源消息泵)",c:"#d97757",
+    pro:["集成成本全场最低:起个进程、收发消息,CLI 的全部能力(子代理/审批/压缩/checkpoint)白拿;","CLI 升级=你的 agent 免费升级,永远不用自己修循环;","协议稳定,SDK 极薄,几乎不会有 SDK 层的 bug。"],
+    con:["黑盒:循环语义一个字节改不了,行为异常只能猜;\u201crun 什么时候算结束\u201d都得用三重判定去猜(任务账本+idle+600 秒兜底);","上下文管理(压缩时机、预算)完全不可控,深度定制没门;","生命周期绑定闭源二进制:版本锁定、审计盲区、供应商锁定三件套。"],
+    one:"最省心,也最不由你。适合快速做产品,不适合做研究或深度定制。"},
+  cx:{n:"⑧ Codex(内环+外环双 loop)",c:"#94a3b8",
+    pro:["双环分工(任务级/采样级)让长任务、中途插话、收尾清理都井井有条;","策略焊死=没法被误配置绕过:审批默认拒绝、沙箱默认开,安全底线由架构保证;","无轮数上限+语义收尾钩子,长编码任务体验好;","Apache 2.0 真开源:app-server 协议嵌入当引擎、或 fork 改造都合法。"],
+    con:["焊死是双向的:防你配错,也防你改对——想换循环行为?改 Rust 源码重编译;","模型协议锁死 Responses,接国产模型靠厂商兼容端点(智谱等),协议通了但答案质量=模型能力×调校匹配×翻译保真度;","130+ crate 的工程复杂度,外围贡献者和审计者都吃力。"],
+    one:"安全与工程强度全场第一,灵活性与生态开放性垫底。适合当主力工具用,不适合当框架改。"}
+};
+
+var DIMS = {
+ 1:{name:"主循环",q:"那个 5 行骨架被塞进了什么壳",
+    intro:"所有 agent 的内核只有 5 行:<code>while True: 回复=调用模型(历史) → 没有工具调用就 break → 执行工具 → 结果追加回历史</code>。八个框架的差别,只是这 5 行被塞进了什么壳、允许你从哪里伸手进去改。行业竞争不是在发明新循环,而是在回答\u201c循环放进谁手里\u201d。",
+    cells:{
+     lg:"<b>① Pregel 图 superstep</b>——你干脆不写循环。你画一张流程图贴墙上:\u201c模型 → 工具 → 回到模型,没事干就收工\u201d。有个机器人(引擎)盯着这张图自动转圈干活:每个超步收拢写入→算出被触发的节点→并发执行→存档。<b>大白话:你不当司机,你画地图,车自己跑。</b>(证据:pregel/index.ts:2613、loop.ts:958)",
+     da:"<b>② 图+中间件栈</b>——用的就是①那张图、那个机器人。区别是它提前帮你把图画好,还允许你在每个环节外包一层皮——比如\u201c模型调用\u201d外包一层你的质检员,请求经过时可以偷看、偷改。<b>大白话:①是毛坯房,②是精装房,家具(待办清单/子代理/FS)都配好了,你还保留改水电的权利。</b>(10-08 审计:唯一入口 create_deep_agent(graph.py:277) 约 700 行装配后交 langgraph 转;自研在装配与上下文工程,循环是别人的)",
+     os:"<b>③ 单 while·四态</b>——就一个 while。每转一圈结束,程序吐出一张小纸条,只有 4 种:\u201c收工\u201d(任务完成)/\u201c换人\u201d(交给另一个 agent)/\u201c继续\u201d(再来一圈)/\u201c暂停等审批\u201d(停下来问人)。<b>大白话:循环本身很笨,全靠每轮末尾抽一张签决定命运。</b>(证据:run.py:987;四态定义 run_steps.py)",
+     pi:"<b>④ 双 while·9 回调</b>——外层管\u201c运行中途用户又打字了没\u201d(打了就再跑一圈),内层就是那 5 行骨架;循环里预留 9 个插座(工具执行前/后、每轮起止…),你的代码插上去,到点通电执行。<b>大白话:机器是标准机,墙上留了 9 个插座给你插自己的电器,除此之外不让拆。</b>(证据:agent-loop.ts:162,约 140 行)",
+     dsh:"<b>⑤ 三层 while·waterfall</b>——循环套三层:最外层管整个会话(kick),中间层管一轮对话(turn),最里层管一次模型调用+跑工具(step);每层干活前都喊一嗓子(发事件),插件听见就能插手拦截。<b>大白话:值班经理→领班→服务员三层管理,层层喊话,任何人听到都能顶一句嘴。</b>(证据:packages/core/agent-loop/src/agent.ts;循环本身也是 cordis 服务,pre-step/request/request-error 等决策点全是可拦截瀑布)",
+     hm:"<b>⑥ phase 状态机</b>——把\u201c一轮\u201d拆成约 20 个工位的流水线:备料→拼请求→过安检→呼叫模型→跑工具……每个工位是独立小函数,大家传着改同一本大账本(存消息、预算、重试次数)。<b>大白话:工厂流水线,20 个工人排队,每人只干自己那道工序,传的是同一本公共笔记。</b>(证据:conversation_loop.py:1636;_run_phase 反射读写 _LoopState)",
+     cc:"<b>⑦ 闭源消息泵</b>——真正的循环在闭源 CLI 里,你根本看不见。你的代码只是个传菜员:后厨(CLI)做菜端出来,你接住展示;客人想催菜(取消)或被后厨反问(审批请求),你负责传话。<b>大白话:餐厅是你的,但厨房是别人的、还拉着帘子,你只能端盘子。</b>(证据:query.py:388 起的消息泵,stream-json NDJSON 帧路由)",
+     cx:"<b>⑧ 内环+外环双 loop</b>——外环管整个任务(从接单到交付),内环管\u201c调一次模型+跑工具\u201d。最大的区别:权限检查、审批这些逻辑直接焊死在内环循环体里——不是插座、不是包装层,是出厂焊上的,拆不了。<b>大白话:自家厨房但设备全部焊死——好用,但你一颗螺丝都拧不动。</b>(证据:regular.rs:104 外环 / turn.rs:426 内环)"}},
+ 2:{name:"扩展点",q:"想改框架行为,手从哪里伸进去",
+    intro:"这是每个框架的\u201c合法改装口\u201d。判断标准:<b>不改源码的前提下,你能把自己的代码挂到哪些位置。</b>自由度从\u201c重新画图\u201d到\u201c一个口子都没有\u201d排开。",
+    cells:{
+     lg:"<b>图节点/Channel</b>:改装=重新画图——加节点、加边、自定义 Channel(reducer,决定多份输出怎么合并成一个状态)。自由度最大,但样样自己搭。",
+     da:"<b>middleware wrap_*</b>:不用动图,给\u201c模型调用\u201d\u201c工具调用\u201d各包一层包装函数(wrap_model_call/wrap_tool_call),在包装里改请求、改响应。10-08 审计:装配期还有同名替换/排除校验等治理逻辑。",
+     os:"<b>对象配置+Guardrail</b>:给 Agent 对象传参(instructions、tools、model)+挂输入/输出护栏函数。只能在参数允许的范围内调。",
+     pi:"<b>仅 9 个回调</b>:循环里挖好的 9 个固定插槽(工具执行前/后、每轮起止…)。插槽之外一寸都不能改——这是刻意的。",
+     dsh:"<b>Cordis 事件拦截</b>(来自笔记):框架每个动作都对外发事件,插件监听任意事件即可拦截、改写、短路。插槽无限多,但行为也最难推断。",
+     hm:"<b>改源码(mixin 类)</b>:扩展=写一个子类继承它的类、重写某个方法。最原始的方式,框架一升级你的子类就可能崩。",
+     cc:"<b>hooks+MCP 挂钩子</b>:只能在 CLI 预留的钩子点(会话开始/工具调用前后…)挂回调,加工具走 MCP。口子是别人选好的。",
+     cx:"<b>编译进 Rust 核</b>:对使用者几乎不可扩展,想改行为=改源码重新编译。产品思路:牢固换灵活。"}},
+ 3:{name:"turn 上限",q:"循环的保险丝——到了 N 轮强制掐断",
+    intro:"核心结论:<b>SDK 系给小数字防新手失控;产品系不设默认上限</b>——编码任务动辄几百轮,硬上限会掐断长任务,改用\u201c模型不再调工具即停+预算/取消兜底\u201d。",
+    cells:{
+     lg:"<b>25</b>:recursionLimit 默认 25 个超步,超了抛 GraphRecursionError。",
+     da:"<b>同基座 25</b>——但 10-08 审计发现 deepagents 自己把 recursion_limit 硬编码为 <b>9999</b>(graph.py:1004),几乎等于不设防,成本刹车要自己做。",
+     os:"<b>10</b>:max_turns 默认,超了抛 MaxTurnsExceeded(可被 error_handlers 吞掉转成输出)。",
+     pi:"<b>无</b>:无默认上限;无工具调用且无插话即停。",
+     dsh:"<b>无</b>:inbox 有残留就换新 AbortController 继续下一 turn,inbox 空才退出。",
+     hm:"<b>名义无限</b>(max_iterations 默认 sys.maxsize,源码注释明言 unlimited),靠 iteration_budget/run 预算/外层异常 8 次兜底。",
+     cc:"<b>flag 转发闭源</b>:--max-turns/--max-budget-usd 由 CLI 执行,SDK 只透传。",
+     cx:"<b>无</b>:无轮数上限,needs_follow_up+turn 收尾 hooks+取消驱动。"}},
+ 4:{name:"子代理",q:"帮手怎么派",
+    intro:"共识:<b>全部走隔离派发</b>——没有一家是\u201c同一对话里换角色\u201d,都是独立上下文的新执行体,干完只把结论带回来。差异在隔离到哪一层、同步还是异步、权限谁强制。",
+    cells:{
+     lg:"<b>task 隔离派发</b>:用子图/Send 派发任务,checkpoint 命名空间(checkpoint_ns)自动隔离;子图内 interrupt 可冒泡到父图审批。",
+     da:"<b>同基座 task 工具</b>:预装现成子代理工具。10-08 审计:task 工具+subagent_graphs 注册表,支持 isolated(独立上下文)与 fork(继承父对话)双模式。",
+     os:"<b>handoff+as_tool</b>:两种原语——handoff 把对话权直接转移给另一个 agent(无子上下文);as_tool 把子 agent 包成工具(真子上下文,同步等结果)。",
+     pi:"<b>✗ 嵌套调用</b>:没有子代理原语,官方姿势是在自定义工具里再调一次模型,自己想办法。",
+     dsh:"<b>多后端可外派竞品</b>(来自笔记):委派目标可以是别的模型/后端。",
+     hm:"<b>delegate+阻断集</b>:派生全新 agent,并附一份禁止清单——子代不得再派生、不得动记忆,防止递归失控。",
+     cc:"<b>独立会话可 resume</b>:子代理有独立会话文件(transcript),可以单独恢复查看;SDK 侧用 parent_tool_use_id 归因。",
+     cx:"<b>全功能子线程·审批关</b>:子代理是完整的小 codex(独立会话/日志/通道),但审批被硬编码 Never,靠父策略+沙箱兜底。"}},
+ 5:{name:"持久化",q:"账本记在哪、什么格式",
+    intro:"共识:<b>append-only 日志</b>——只往末尾追加、永不改旧内容(崩溃安全+可重放+可审计,还是 prompt cache 的前提)。三个家族:日志追加系/数据库系/快照系。",
+    cells:{
+     lg:"<b>checkpointer 快照(快照系)</b>:每个超步把整个图状态拍快照——存的不只是聊天记录,还有执行位置,所以能从任意断点复活。",
+     da:"<b>同基座+files 通道</b>:checkpointer 透传给 langgraph(快照系);自研部分是 files 通道+Store/ContextHub/Filesystem 后端(10-08 审计)。",
+     os:"<b>RunState 序列化(快照系)</b>:整个运行状态(含未决审批)转成 JSON 字符串($schemaVersion 1.18),存哪都行;另有 Session 协议多后端(SQLite/Redis/Mongo/SQLAlchemy)存消息。",
+     pi:"<b>JSONL 树·零复制(日志追加系)</b>:每条记录带父指针追加进日志,分支/回滚只是换指针,从不复制数据。",
+     dsh:"<b>事件溯源 JSONL(日志追加系)</b>(来自笔记):一切皆事件全追加,每次 run 可回放。10-01 审计补充:持久化是可选 storage 插件(storage-json/storage-sqlite,JSONL v3 格式带 SHA-256 契约),内存会话默认不落盘。",
+     hm:"<b>SQLite WAL+FTS5(数据库系)</b>:单文件全量权威。WAL=先写日志再改数据,崩溃后可恢复——数据库界的 append-only;FTS5=全文搜索,能搜历史对话;配合 persist-before-execute(副作用前强制落库)。",
+     cc:"<b>闭源 jsonl+镜像(日志追加系)</b>:真账本在 CLI 手里,SDK 只能批量镜像一份到自己的 SessionStore。",
+     cx:"<b>rollout JSONL+DB(日志追加系)</b>:消息流进 jsonl 日志(可重放,注释原文 so sessions can be replayed),索引等派生数据另放 sqlite;连 revert 都不删旧文件,新建不可变文件封存。"}},
+ 6:{name:"压缩",q:"窗口满了怎么办",
+    intro:"压缩=把较早的历史用摘要替换掉,腾出窗口让对话继续。看格子的关键是<b>触发时机</b>。对 prompt cache 的意义:压缩是\u201c偶尔付一次学费换几百轮缓存继续命中\u201d,而滑动窗口截头是\u201c每轮全量缓存 miss\u201d——这就是为什么产品全选压缩、没人做滑动窗口。",
+    cells:{
+     lg:"<b>✗ 自己造</b>:不内置,窗口爆了你自己处理。",
+     da:"<b>✓ 内置 SummarizationMiddleware</b>(10-08 审计修正,速览表的 ✗ 已过时):压缩+历史 offload(summarization.py:1487-1623),还带 20k-token 工具结果自动落盘、溢出后单次降级重试。",
+     os:"<b>✗ 要自己弄</b>:主循环无自动压缩/token 预算(审计 fd-01),仅 opt-in 的 tool_output_trimmer/SessionSettings.limit。",
+     pi:"<b>✓ 阈值触发</b>:窗口剩余低于 16384 token 就压;CompactionEntry 作为可撤销的上下文检查点(原始条目不删)。",
+     dsh:"<b>✓ 0.8×窗口</b>(来自笔记):用到八成窗口就压。",
+     hm:"<b>✓ 每轮预检门</b>:每轮调模型之前先检查,超了先压再调——所以叫\u201c门\u201d。",
+     cc:"<b>✓ 闭源自动</b>:CLI 自动压,SDK 侧只能感知到 PreCompact 钩子和压缩边界消息(compact_boundary)。",
+     cx:"<b>✓ mid/post 双时机</b>:轮中途(快爆时)+轮结束(收尾时)两个时机都能压。"}},
+ 7:{name:"安全",q:"模型乱来时谁拦",
+    intro:"最大的分化轴。产品系(Codex/Claude)防线默认焊死;框架系默认全放行——<b>上线前先给工具执行套容器或审批层,优先级高于一切选型争论</b>:选错框架顶多返工,安全默认出事是数据泄露。",
+    cells:{
+     lg:"<b>interrupt HITL</b>:引擎只提供一个原语——interrupt() 暂停等人决策。没有权限规则、没有沙箱,审批逻辑自己搭。",
+     da:"<b>FS 权限+HITL 内建(shell 除外)</b>(10-08 审计修正):FilesystemPermission 首匹配 deny/interrupt,自动装配 HumanInTheLoopMiddleware 中断——但只覆盖内置文件工具层;LocalShellBackend 用 shell=True 直跑宿主无隔离且不受权限管,自定义工具也绕过。",
+     os:"<b>Guardrail 熔断</b>:输入/输出护栏函数(如\u201c检测到越狱意图就拒绝\u201d)——触发即抛异常终止整个 run,像保险丝熔断;工具审批需逐个 opt-in 声明 needs_approval。",
+     pi:"<b>✗ 交给容器</b>:框架完全不设防,官方文档直接教你用 Docker 跑它;唯一强制点是 beforeToolCall 钩子可 block。",
+     dsh:"<b>审批+三档沙箱</b>(10-01 审计修正,速览表\u201c弱沙箱\u201d偏低):tools/pre-execute 策略瀑布+单调 guard(任何 guard 可拒、无人能强行放行);沙箱三档 read-only/workspace-write/danger-full-access,请求档位不可用时 fail-closed 抛 SANDBOX_UNAVAILABLE 而非裸跑。",
+     hm:"<b>审批门(自认启发式)</b>:有危险命令检测+人审门,但官方自己承认这些进程内防线是启发式的、不是强隔离,真边界只有操作系统;默认 local 后端直跑宿主机。",
+     cc:"<b>6 模式+canUseTool</b>:CLI 有六种权限模式(默认询问/自动接受编辑/计划模式/绕过全部…),SDK 再加 can_use_tool 回调——每次用工具前问你的代码;判定逻辑在闭源 CLI。",
+     cx:"<b>审批+OS 沙箱双链</b>:两层——应用层(execpolicy 规则+三级审批,ReviewDecision 八态默认 Denied fail-closed)之下还有操作系统级沙箱(macOS Seatbelt/Linux Landlock/bwrap/Windows 受限令牌),命令在系统层面就跑不出笼子。八家中唯一双层齐全且默认启用。"}},
+ 8:{name:"记忆",q:"跨会话的长期记忆(不是当前对话历史)",
+    intro:"这一行问的是:今天的对话结束后,明天它还能记住你吗?谱系:不提供 → 提供原语自己搭 → 文件约定 → 自动提取。",
+    cells:{
+     lg:"<b>Store/虚拟 FS 自建</b>:提供 BaseStore(跨会话键值存储)原语,但存什么、何时取,全自己写。",
+     da:"<b>MemoryMiddleware</b>(10-08 审计修正,速览表 ✗ 已过时):内建记忆注入(AGENTS.md 注入);但跨会话长期记忆的<b>提取与沉淀</b>仍要自己设计。",
+     os:"<b>✗ 无记忆原语</b>:Session 只存消息历史(那是会话恢复,不是长期记忆),要自己接数据库或文件。",
+     pi:"<b>✗</b>:官方不带,要记忆自己接。",
+     dsh:"<b>skill 注册表</b>:显式替代哲学——隐式记忆判为设计上不提供,给四种替代:spill(工具结果外置)/skill(技能注册表按需全文)/todo-goal(持久计划)/跨会话有界引用。",
+     hm:"<b>学习循环自动沉淀</b>:最有野心——每轮对话结束后自动 fork 一个子 agent 回看这场对话,把值得记的总结成 skill/memory 存进库,下次自动注入。记忆不用你记,它自己学。",
+     cc:"<b>文件约定 memory</b>:最朴素——约定几个文件(CLAUDE.md 等),每次启动读进来。靠约定不靠系统。",
+     cx:"<b>后台提取流水线</b>:后台跑提取任务,从会话流里自动抽取值得记的内容写进记忆库。"}},
+ 9:{name:"模型接入",q:"能接多少模型、什么时候定",
+    intro:"2026 年协议兼容已不是障碍:厂商会抢着建兼容端点(智谱建 Responses 端点接 Codex,智谱/DeepSeek 建 Anthropic 端点接 Claude Code)。但端点只管四层里的第一层(协议通),还有:特性全不全(思考块/缓存标记可能只是子集)、干得好不好(CLI 为自家模型调校)、升级跟不跟(时间差)。<b>答案质量=模型能力×调校匹配×翻译保真度,三者相乘。</b>翻译层三个位置按\u201c坏了谁修\u201d排序:框架自带>厂商服务端>自建代理。",
+    cells:{
+     lg:"<b>600+ 构造期</b>:借 langchain 生态能接 600+ 模型,但你在写代码初始化时就选死了哪个。",
+     da:"<b>同基座+Profile 注册</b>:同基座 600+;10-08 审计另有 register_provider_profile(ProviderProfile 注册表)。",
+     os:"<b>Responses 形状</b>:以自家 Responses API 为原生格式,别家模型靠转换层适配,还能借 litellm 前缀路由接一堆——框架自带翻译,坏了自己不用修。",
+     pi:"<b>按协议 42 模型</b>:按协议归一(Anthropic/OpenAI/Google/Bedrock/Mistral 五种协议适配器),协议之下 42 个模型即插即用。",
+     dsh:"<b>插件·每请求路由</b>(来自笔记):每个请求都可以路由到不同供应商;10-01 审计:ctx.llm 中立服务+registerAdapter,路由本身是可逐 turn 改写的 waterfall 提案。",
+     hm:"<b>运行时热切换链</b>:跑到一半供应商挂了/限流了,自动切到备用链继续——八家中切换能力最强的。",
+     cc:"<b>绑 Claude·env 换</b>:模型绑死 Claude,只能用环境变量换接入通道(Bedrock/Vertex/网关),连温度参数都摸不到。",
+     cx:"<b>钉死 Responses</b>:只认 Responses 协议,配 chat 协议的供应商直接报错;接国产模型=厂商建兼容端点(如智谱 wire_api=\u201cresponses\u201d)或自建翻译代理。"}}
+};
+
+function esc(s){return s;}
+function prosCard(k){
+  var f=FW[k];
+  var h='<div class="fwcard"><h3 class="gold" style="margin-top:0;border-color:'+f.c+';color:'+f.c+'">'+f.n+' · 优缺点</h3>';
+  h+='<div class="pro">✅ 优点</div><ul>'; for(var i=0;i<f.pro.length;i++) h+='<li>'+f.pro[i]+'</li>'; h+='</ul>';
+  h+='<div class="con">❌ 缺点</div><ul>'; for(var j=0;j<f.con.length;j++) h+='<li>'+f.con[j]+'</li>'; h+='</ul>';
+  h+='<div class="oneline">一句话:'+f.one+'</div></div>';
+  return h;
+}
+function renderPanel(dimId, fwKey){
+  var h='';
+  if(dimId){
+    var d=DIMS[dimId];
+    h+='<h2>行 '+dimId+' · '+d.name+'</h2><div class="note">'+d.q+'</div>';
+    h+='<div class="body" style="margin-top:10px"><p>'+d.intro+'</p>';
+    var order=["lg","da","os","pi","dsh","hm","cc","cx"];
+    for(var i=0;i<order.length;i++){
+      var k=order[i];
+      h+='<span class="anchor'+(k===fwKey?' hl':'')+'" id="a-'+k+'">'+d.cells[k]+'</span>';
+    }
+    h+='</div>';
+  }
+  if(fwKey){ h+= dimId? '<h3 class="gold">这家框架的优缺点</h3>'+prosCard(fwKey) : '<h2>'+FW[fwKey].n+'</h2>'+prosCard(fwKey); }
+  if(!dimId && !fwKey){ h='<h2>未找到</h2><div class="body">这个链接没有对应内容。</div>'; }
+  document.getElementById('pcontent').innerHTML=h;
+  document.getElementById('panel').classList.add('open');
+  if(dimId && fwKey){
+    var el=document.getElementById('a-'+fwKey);
+    if(el) el.scrollIntoView({block:'center'});
+    else document.getElementById('panel').scrollTop=0;
+  } else { document.getElementById('panel').scrollTop=0; }
+  // 高亮矩阵中选中格
+  var cells=document.querySelectorAll('#matrix td.on');
+  for(var m=0;m<cells.length;m++) cells[m].classList.remove('on');
+  if(dimId){
+    var td=document.querySelector('#matrix td.cell[data-dim="'+dimId+'"]'+(fwKey?'[data-fw="'+fwKey+'"]':''));
+    if(td) td.classList.add('on');
+  }
+}
+function closePanel(){
+  document.getElementById('panel').classList.remove('open');
+  history.replaceState(null,'',location.pathname+location.search);
+}
+function route(){
+  var m=location.hash.match(/#d(\d)-f-([a-z]+)/);
+  if(m && DIMS[+m[1]] && FW[m[2]]){ renderPanel(+m[1],m[2]); return; }
+  var f=location.hash.match(/#fw-([a-z]+)/);
+  if(f && FW[f[1]]){ renderPanel(null,f[1]); return; }
+  var d=location.hash.match(/#d(\d)/);
+  if(d && DIMS[+d[1]]){ renderPanel(+d[1],null); return; }
+  document.getElementById('panel').classList.remove('open');
+}
+// 矩阵格子
+var cells=document.querySelectorAll('#matrix td.cell[data-dim][data-fw]');
+for(var i=0;i<cells.length;i++){
+  (function(td){
+    td.onclick=function(){ location.hash='#d'+td.getAttribute('data-dim')+'-f-'+td.getAttribute('data-fw'); };
+  })(cells[i]);
+}
+// 行头
+var rhs=document.querySelectorAll('#matrix td.rh');
+for(var r=0;r<rhs.length;r++){
+  (function(td){ td.onclick=function(){ location.hash='#d'+td.getAttribute('data-dim'); }; })(rhs[r]);
+}
+// 列头
+var fhs=document.querySelectorAll('#matrix th.cell[data-fw]');
+for(var c=0;c<fhs.length;c++){
+  (function(th){ th.onclick=function(){ location.hash='#fw-'+th.getAttribute('data-fw'); }; })(fhs[c]);
+}
+// 星表行
+var srs=document.querySelectorAll('.star-table tr[data-fw]');
+for(var s=0;s<srs.length;s++){
+  (function(tr){ tr.onclick=function(){ location.hash='#fw-'+tr.getAttribute('data-fw'); }; })(srs[s]);
+}
+// 通用 hash 链接(选型指南/差异轴里的蓝字)
+var lhs=document.querySelectorAll('[data-hash]');
+for(var q=0;q<lhs.length;q++){
+  (function(el){ el.onclick=function(){ location.hash=el.getAttribute('data-hash'); }; })(lhs[q]);
+}
+window.addEventListener('hashchange',route);
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closePanel(); });
+route();
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>八家 Agent 框架 · 主要相同与主要差距</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0b1220; font-family:"Microsoft YaHei","PingFang SC",sans-serif; color:#e2e8f0; }
+  .slide { width:1600px; margin:20px auto; background:linear-gradient(160deg,#0f172a,#111c33);
+           border:1px solid #1e293b; border-radius:16px; padding:32px 44px; position:relative; }
+  .slide::before { content:""; position:absolute; top:0; left:0; right:0; height:4px;
+                   background:linear-gradient(90deg,#fbbf24,#38bdf8,#a78bfa,#d97757); }
+  h1 { font-size:32px; margin-bottom:4px; } .sub { color:#94a3b8; font-size:14.5px; margin-bottom:16px; }
+  .card { background:#16213a; border:1px solid #24314f; border-radius:12px; padding:14px 16px; }
+  .muted { color:#64748b; } .mono { font-family:Consolas,monospace; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { border:1px solid #24314f; padding:5px 7px; font-size:11.8px; text-align:left; vertical-align:top; }
+  th { background:#1b2742; }
+  .flow { display:flex; align-items:center; gap:8px; justify-content:center; font-size:13.5px; flex-wrap:wrap; }
+  .step { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px 12px; }
+  .arrow { color:#475569; font-size:18px; }
+  .same { background:rgba(52,211,153,.10); border-color:rgba(52,211,153,.35); }
+  .common-chip { display:inline-block; background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.4);
+                 border-radius:99px; padding:3px 12px; font-size:12.5px; margin:3px 4px; }
+  .axis { border-left:4px solid #fbbf24; padding-left:12px; margin-bottom:10px; font-size:13.5px; line-height:1.7; }
+  .footer { margin-top:14px; color:#475569; font-size:12px; }
+</style>
+</head>
+<body>
+<section class="slide" id="s1" style="min-height:1180px">
+  <h1>八家 Agent 框架 · 主要相同 与 主要差距</h1>
+  <div class="sub">Pi · deepagents · LangGraph · DeepSeek Harness · Hermes · Claude Agent SDK · Codex · OpenAI Agents SDK ｜ 源码级拆解 · 全部可在 harness-research/ 按 file:line 验证</div>
+
+  <!-- ═══ 上：主要相同 ═══ -->
+  <div class="card" style="margin-bottom:14px; border-color:rgba(52,211,153,.35)">
+    <div style="font-size:16px;font-weight:700;color:#34d399;margin-bottom:8px">✅ 主要相同 —— 8 家共享的同一个骨架</div>
+    <div class="flow">
+      <span class="step same">① 组装上下文<br><span class="muted" style="font-size:11px">system+历史+工具schema</span></span><span class="arrow">→</span>
+      <span class="step same">② LLM 采样</span><span class="arrow">→</span>
+      <span class="step same">③ 挑出工具调用</span><span class="arrow">→</span>
+      <span class="step same" style="color:#fde68a">无 → 终止 ⑥</span><span class="arrow">→</span>
+      <span class="step same">④ 执行工具</span><span class="arrow">→</span>
+      <span class="step same">⑤ 结果落历史</span>
+      <span style="color:#fbbf24;font-size:22px;font-weight:700">↻</span>
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <span class="common-chip">终止权交给模型（产品系全部无 turn 上限）</span>
+      <span class="common-chip">多 Agent 全走隔离派发</span>
+      <span class="common-chip">append-only 日志成持久化共识</span>
+      <span class="common-chip">压缩成标配</span>
+      <span class="common-chip">全在为 prompt cache 设计</span>
+    </div>
+  </div>
+
+  <!-- ═══ 中：核心差距矩阵 ═══ -->
+  <div class="card" style="margin-bottom:14px; padding:12px">
+    <div style="font-size:16px;font-weight:700;color:#fbbf24;margin-bottom:8px">⚡ 主要差距 —— 同一骨架，八种长法（横读=一个问题业界的全部答案）</div>
+    <table style="table-layout:fixed">
+      <tr>
+        <th style="width:78px">维度</th>
+        <th style="color:#38bdf8">LangGraph<br>裸核</th><th style="color:#38bdf8">deep<br>agents</th><th style="color:#34d399">OpenAI<br>SDK</th><th style="color:#a78bfa">Pi</th>
+        <th style="color:#60a5fa">DSH</th><th style="color:#f59e0b">Hermes</th><th style="color:#d97757">Claude<br>SDK</th><th style="color:#94a3b8">Codex</th>
+      </tr>
+      <tr><td><b>主循环</b></td>
+        <td>Pregel 图 superstep</td><td>图+中间件栈</td><td>单 while·四态</td><td>双 while·9 回调</td><td>三层 while·waterfall</td><td>phase 状态机</td><td>闭源·SDK=消息泵</td><td>内环+外环双 loop</td></tr>
+      <tr><td><b>扩展点</b></td>
+        <td>图节点/Channel</td><td>middleware wrap_*</td><td>对象配置+Guardrail</td><td>仅 9 个回调</td><td>Cordis 事件拦截</td><td>改源码(mixin 类)</td><td>hooks+MCP 挂钩子</td><td>编译进 Rust 核</td></tr>
+      <tr><td><b>turn 上限</b></td>
+        <td>25</td><td>同 LangGraph</td><td><b>10</b></td><td style="color:#64748b">无</td><td style="color:#64748b">无</td><td style="color:#64748b">无限</td><td>flag 转发闭源</td><td style="color:#64748b">无</td></tr>
+      <tr><td><b>子代理</b></td>
+        <td>task 隔离派发</td><td>同基座 task 工具</td><td>handoff+as_tool</td><td style="color:#64748b">✗ 嵌套调用</td><td>多后端可外派竞品</td><td>delegate+阻断集</td><td>独立会话可 resume</td><td>全功能子线程·审批关</td></tr>
+      <tr><td><b>持久化</b></td>
+        <td>checkpointer 快照</td><td>同基座+todos 通道</td><td>RunState 序列化</td><td>JSONL 树·零复制</td><td>事件溯源 JSONL</td><td>SQLite WAL+FTS5</td><td>闭源 jsonl+镜像</td><td>rollout JSONL+DB</td></tr>
+      <tr><td><b>压缩</b></td>
+        <td style="color:#64748b">✗ 自己造</td><td style="color:#64748b">✗</td><td style="color:#64748b">✗</td><td>✓ 阈值触发</td><td>✓ 0.8×窗口</td><td>✓ 每轮预检门</td><td>✓ 闭源自动</td><td>✓ mid/post 双时机</td></tr>
+      <tr><td><b>安全</b></td>
+        <td>interrupt HITL</td><td>权限中间件可加</td><td>Guardrail 熔断</td><td style="color:#64748b">✗ 交给容器</td><td>审批+弱沙箱</td><td>审批门(自认启发式)</td><td>6 模式+canUseTool</td><td>审批+OS 沙箱双链</td></tr>
+      <tr><td><b>记忆</b></td>
+        <td>Store/虚拟 FS 自建</td><td style="color:#64748b">✗</td><td style="color:#64748b">✗</td><td style="color:#64748b">✗</td><td>skill 注册表</td><td>学习循环自动沉淀</td><td>文件约定 memory</td><td>后台提取流水线</td></tr>
+      <tr><td><b>模型接入</b></td>
+        <td>600+ 构造期</td><td>同基座</td><td>Responses 形状</td><td>按协议 42 模型</td><td>插件·每请求路由</td><td>运行时热切换链</td><td>绑 Claude·env 换</td><td>钉死 Responses</td></tr>
+    </table>
+  </div>
+
+  <!-- ═══ 下：三大差异轴 + 选型 ═══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:#fbbf24;margin-bottom:8px">三大差异轴（看懂这三条 = 看懂全部差距）</div>
+      <div class="axis"><b>轴 1 · 循环控制权</b>（改行为有多难）：<br>LangGraph 图可编程 &gt; deepagents 中间件 &gt; dsh 事件可拦 &gt; Pi 仅回调 &gt; Hermes/Codex 编译写死 &gt; Claude SDK 黑盒挂钩子</div>
+      <div class="axis"><b>轴 2 · 历史落在哪</b>（可靠性与可恢复性）：<br>内存数组(Pi) → append 日志(dsh/Codex) → SQLite(Hermes) → 闭源(Claude) —— 越往右越可恢复、可审计</div>
+      <div class="axis"><b>轴 3 · 安全投入</b>（审批+沙箱几层）：Codex 双链独一档 &gt; Claude 六模式 &gt; dsh/Hermes 自认启发式 &gt; Pi 整体外包容器</div>
+    </div>
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:#38bdf8;margin-bottom:8px">🧭 选型一句话</div>
+      <table>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#38bdf8">学原理/深度定制</b></td><td style="border:none">LangGraph 裸核（全可编程，代价是样样自己造）</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#38bdf8">快速出产品</b></td><td style="border:none">deepagents（官方预组装，todo/子代理/FS 开箱即用）</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#94a3b8">编码 Agent 主力</b></td><td style="border:none">Codex（审批+OS 沙箱双链）或 Claude SDK（生态最熟）</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#f59e0b">多源采集/个人助理</b></td><td style="border:none">Hermes（多供应商热切换+自动学习循环）</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#60a5fa">插件化/多路由</b></td><td style="border:none">DeepSeek Harness（一切皆插件，国产背景）</td></tr>
+        <tr><td style="border:none;padding:3px 6px"><b style="color:#a78bfa">极简/教学</b></td><td style="border:none">Pi（140 行读完主循环）</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="footer" style="margin-top:10px">证据坐标：harness-research/ 各仓源码 ｜ 逐家八维详解见 03-sdk-research/notes/ ｜ 本页为"机制图谱"的浓缩速览版</div>
+</section>
+</body>
+</html>

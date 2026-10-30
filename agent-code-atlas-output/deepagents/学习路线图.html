@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>deepagents 架构报告 · 初学者学习路线图</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2733; --muted: #5b6b7b;
+    --line: #d9e0e7; --accent: #2563c7; --accent-soft: #e8effa;
+    --green: #1e8e4e; --green-soft: #e4f3ea;
+    --blue: #2260b8; --blue-soft: #e5eef9;
+    --yellow: #9a6b00; --yellow-soft: #fdf2d7;
+    --red: #b3372f; --red-soft: #fae7e5;
+    --gray: #6b7684; --gray-soft: #eceff2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.65; padding: 28px 18px 60px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  h1 { font-size: 24px; margin-bottom: 6px; }
+  h2 { font-size: 19px; margin: 34px 0 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+  h3 { font-size: 15px; margin-bottom: 6px; }
+  .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* 进度条 */
+  .progress-wrap { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; }
+  .progress-bar { flex: 1; height: 10px; background: var(--gray-soft); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--green); border-radius: 6px; transition: width .3s; }
+  .progress-text { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+  /* ============ Part 1 页面地图线框 ============ */
+  .wireframe { display: grid; grid-template-columns: 200px 1fr 250px; grid-template-rows: 52px 300px 34px; gap: 8px; margin-top: 12px; }
+  .wf-block {
+    border: 2px solid var(--line); border-radius: 8px; background: var(--panel);
+    padding: 8px 10px; cursor: pointer; transition: all .15s; position: relative; overflow: hidden;
+  }
+  .wf-block:hover { border-color: var(--accent); }
+  .wf-block.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .wf-block .wf-name { font-weight: 700; font-size: 13.5px; }
+  .wf-block .wf-hint { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .wf-top { grid-column: 1 / 4; }
+  .wf-left { grid-row: 2; grid-column: 1; }
+  .wf-mid { grid-row: 2; grid-column: 2; display: flex; flex-direction: column; }
+  .wf-right { grid-row: 2; grid-column: 3; }
+  .wf-bottom { grid-column: 1 / 4; grid-row: 3; display: flex; align-items: center; }
+  .wf-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .wf-tab { font-size: 10.5px; border: 1px solid var(--line); border-radius: 20px; padding: 1px 8px; color: var(--muted); }
+  .wf-tab.hot { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .wf-detail { margin-top: 12px; }
+  .wf-detail .tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 5px; padding: 1px 8px; margin-bottom: 6px; }
+  .wf-detail p { font-size: 13.5px; }
+  .wf-detail .analogy { margin-top: 8px; font-size: 13px; color: var(--muted); background: var(--bg); border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 0 6px 6px 0; }
+
+  /* ============ Part 2 学习路线 ============ */
+  .route { position: relative; margin-top: 16px; }
+  .stage { position: relative; margin-bottom: 18px; padding-left: 64px; }
+  .stage-rail { position: absolute; left: 22px; top: 0; bottom: 0; width: 4px; background: var(--line); border-radius: 2px; }
+  .stage:first-child .stage-rail { top: 14px; }
+  .stage:last-child .stage-rail { bottom: auto; height: 30px; }
+  .stage-dot {
+    position: absolute; left: 8px; top: 10px; width: 32px; height: 32px; border-radius: 50%;
+    color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 4px var(--bg);
+  }
+  .stage-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  .stage-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .stage-title { font-size: 16.5px; font-weight: 700; }
+  .stage-time { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 0 9px; }
+  .stage-goal { font-size: 13.5px; color: var(--muted); margin-bottom: 10px; }
+  .stage-goal b { color: var(--ink); }
+  .stage-analogy { font-size: 13px; color: var(--muted); background: var(--bg); border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 0 6px 6px 0; margin-bottom: 10px; }
+  .stage-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .stage-cols { grid-template-columns: 1fr; } .wireframe { grid-template-columns: 1fr; grid-template-rows: auto; } .wf-left, .wf-mid, .wf-right { grid-row: auto; grid-column: 1; } .wf-top, .wf-bottom { grid-column: 1; } }
+  .stage-cols h4 { font-size: 13px; color: var(--accent); margin-bottom: 5px; }
+  .links li, .checks li { list-style: none; font-size: 13px; margin-bottom: 5px; display: flex; align-items: flex-start; gap: 7px; }
+  .links li::before { content: "▸"; color: var(--accent); flex-shrink: 0; }
+  .checks input { margin-top: 4px; flex-shrink: 0; cursor: pointer; }
+  .checks label { cursor: pointer; }
+  .checks input:checked + label { color: var(--muted); text-decoration: line-through; }
+  .fact { margin-top: 10px; font-size: 13px; background: var(--yellow-soft); border: 1px solid #eeddb0; border-radius: 7px; padding: 7px 11px; }
+  .fact b { color: var(--yellow); }
+
+  /* ============ Part 3 三档标尺 ============ */
+  .ladder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  @media (max-width: 760px) { .ladder { grid-template-columns: 1fr; } }
+  .rung { border-radius: 10px; padding: 14px 16px; border: 1px solid var(--line); background: var(--panel); position: relative; }
+  .rung .lv { font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+  .rung h3 { margin: 2px 0 6px; }
+  .rung p { font-size: 13px; color: var(--muted); }
+  .rung .stages { margin-top: 8px; font-size: 12px; }
+  .rung-target { position: absolute; top: -11px; right: 12px; background: var(--green); color: #fff; font-size: 11.5px; border-radius: 20px; padding: 1px 10px; }
+  .rung.l2 { border: 2px solid var(--green); }
+  .footer-note { margin-top: 26px; font-size: 13px; color: var(--muted); }
+  .kbd { font-family: Consolas, monospace; font-size: 12px; background: var(--gray-soft); border-radius: 4px; padding: 0 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>deepagents 架构报告 · 初学者学习路线图</h1>
+  <div class="sub">配套 <a href="report.html">report.html</a> 使用 · 全程离线 · 勾选进度自动保存在本浏览器</div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="pfill"></div></div>
+    <div class="progress-text" id="ptext">毕业自测 0 / 0</div>
+  </div>
+
+  <!-- ================= Part 1 ================= -->
+  <h2>一 · 先认识这张地图:报告页面五大块</h2>
+  <div class="sub">点击下面线框中的任意一块,查看它是什么、怎么用(相当于报告自身的使用说明书)。</div>
+
+  <div class="wireframe card" style="padding:14px;">
+    <div class="wf-block wf-top" data-k="top">
+      <div class="wf-name">① 顶栏 —— 图例 + 搜索 + 过滤器</div>
+      <div class="wf-hint">项目名 / revision / 语言 / 审计时间 · 全局搜索 · 置信度与状态过滤 · 主题 · 说明</div>
+    </div>
+    <div class="wf-block wf-left" data-k="left">
+      <div class="wf-name">② 左侧栏 —— 两棵树</div>
+      <div class="wf-hint">项目树(真实目录)/ 逻辑树(按架构职责重组)· 文件按职责着色</div>
+    </div>
+    <div class="wf-block wf-mid" data-k="mid">
+      <div class="wf-name">③ 中间 —— 九个标签页(报告的九种图层)</div>
+      <div class="wf-tabs">
+        <span class="wf-tab hot">Overview</span><span class="wf-tab">Architecture</span><span class="wf-tab">Runtime Flows</span><span class="wf-tab">State &amp; Data</span><span class="wf-tab">Source Index</span><span class="wf-tab">Extensions</span><span class="wf-tab">Development Guide</span><span class="wf-tab">Comparison</span><span class="wf-tab">Unknowns</span>
+      </div>
+      <div class="wf-hint" style="margin-top:8px;">底部一行小字「55 节点 · 35 文件 · 45 符号 · 55 证据」是这份审计的家底清单</div>
+    </div>
+    <div class="wf-block wf-right" data-k="right">
+      <div class="wf-name">④ 右侧 —— 详情面板</div>
+      <div class="wf-hint">点任何节点/文件/符号后弹出:职责 · path:line · 代码片段 · 上下游 · 证据</div>
+    </div>
+    <div class="wf-block wf-bottom" data-k="bottom">
+      <div class="wf-name" style="font-size:12px;">⑤ 底部状态栏 —— 当前过滤状态 + 数量统计(地图的比例尺)</div>
+    </div>
+  </div>
+  <div class="card wf-detail" id="wf-detail"></div>
+
+  <!-- ================= Part 2 ================= -->
+  <h2>二 · 学习路线:五关(像打游戏一样一关一关过)</h2>
+  <div class="sub">每关有目标、在报告里点哪里(链接直达)、毕业自测。自测全部打勾即可进入下一关。</div>
+
+  <div class="route" id="route"></div>
+
+  <!-- ================= Part 3 ================= -->
+  <h2>三 · 学到什么程度:三档标尺</h2>
+  <div class="sub">不必追求满级。本路线的主目标是 <b>L2 会讲</b>;L3 按工作需要解锁。</div>
+  <div class="ladder">
+    <div class="rung">
+      <div class="lv" style="color:var(--blue);">L1</div>
+      <h3>会查 —— 把报告当地图用</h3>
+      <p>别人提到一个概念(agent loop、压缩、权限),你能在 1 分钟内用搜索/逻辑树找到对应文件、行号和证据。</p>
+      <div class="stages" style="color:var(--blue);">对应:第 0–1 关</div>
+    </div>
+    <div class="rung l2">
+      <div class="rung-target">本路线主目标 ★</div>
+      <div class="lv" style="color:var(--green);">L2</div>
+      <h3>会讲 —— 合上报告能画出链路</h3>
+      <p>能在白板上画出「装配 → 模型调用 → 工具执行 → 回填 → 下一轮」全链路,讲清状态存哪、压缩何时触发、审批怎么走。</p>
+      <div class="stages" style="color:var(--green);">对应:第 2–3 关</div>
+    </div>
+    <div class="rung">
+      <div class="lv" style="color:var(--yellow);">L3</div>
+      <h3>会改 —— 按配方动手改代码</h3>
+      <p>按 Development Guide 的 9 张配方改真实代码:加工具、换后端、加子代理、接管循环行为。这是二次开发的起点。</p>
+      <div class="stages" style="color:var(--yellow);">对应:第 4 关(按需)</div>
+    </div>
+  </div>
+
+  <div class="card footer-note">
+    <b>读报告的心法:</b>报告里每条结论右侧都有证据的 <span class="kbd">path:line</span>(点「复制 path:line」可直接跳回源码)。
+    学习时至少挑 10 条结论点回源码原文对照——<b>报告告诉你去哪看,源码才让你真的懂</b>。
+    另外别跳过 Unknowns 页:知道这份审计<i>没查清什么</i>,和知道它查清了什么同样重要(共 6 条未确认问题)。
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Part 1: 页面五大块说明 ---------- */
+  var WF = {
+    top: { tag: '① 顶栏', t: '图例 + 搜索 + 过滤器',
+      d: '左半是项目身份(deepagents、monorepo-multi-package、revision 6a3a12bc5b3a、审计时间);中间搜索框能搜节点名/文件名/符号名(快捷键 /);右侧两个下拉是「置信度」和「状态」过滤器——初学建议先切到 high + implemented,只看最可靠、本仓库真正实现的部分。「主题」切换深浅色,「说明」里是全部图例。',
+      a: '类比:进景区先拿一张带图例的导览图。图例(说明按钮)告诉你每种颜色/虚线是什么意思,不认识图例就看不懂地图。' },
+    left: { tag: '② 左侧栏', t: '两棵树:项目树 / 逻辑树',
+      d: '「项目树」是磁盘上的真实目录;「逻辑树」是审计员按架构职责重新分组的视图(项目边界 / 生命周期 / 编排 / 状态 / 集成 / 运行时 / 权限 / 可观测 / 扩展)。每个文件前的彩色圆点 = 它所属的架构层,标签如 core / implemented / delegated / absent 表示重要度与实现状态。下面四个勾选框(仅核心、隐藏测试、隐藏文档、隐藏生成)用来降噪。',
+      a: '类比:同一座城市,「项目树」是真实街道名,「逻辑树」是功能区划图(学校区/商业区/工业区)。初学先看逻辑树,知道每栋楼是干什么的,再看项目树记地址。' },
+    mid: { tag: '③ 中间九个标签页', t: '同一份审计的九种图层',
+      d: 'Overview=城市俯瞰(项目是什么、边界、关键发现);Architecture=分层地图(九层架构,节点可点、上下游高亮);Runtime Flows=交通流(6 条运行链路逐步展开);State & Data=地下管线图(8 个状态对象谁读谁写);Source Index=门牌簿(35 个文件一览表);Extensions=对外出租的铺面(11 个扩展点);Development Guide=装修施工手册(9 张二次开发配方);Comparison=单项目报告里显示不可用(那是多项目比较报告的主页);Unknowns=尚未勘察的区域(6 条未确认问题)。',
+      a: '类比:同一座城市的不同地图图层——俯瞰卫星图、行政区划图、车流图、水管图。去哪一层取决于你当下想回答什么问题。' },
+    right: { tag: '④ 右侧详情面板', t: '每栋楼的房产证 + 监控截图',
+      d: '点任何节点/文件/符号,右侧给出:项目原始术语、职责描述、文件与行号、关键符号(path:line 可一键复制)、代码摘录(≤40 行)、上游/下游关系(点击可跳)、状态读写、以及最重要的「证据」区——每条证据标注类型(CODE/TEST/DOC/INFERENCE…)与置信度。截图中 protocol.py 那张卡片就是典型:结论(后端抽象)+ 证据(protocol.py:404-436 的 BackendProtocol 类定义)。',
+      a: '类比:地图上点一栋楼,弹出它的房产证(法律文件=源码行号)和现场照片(代码摘录)。结论可以怀疑,证据不会撒谎。' },
+    bottom: { tag: '⑤ 底部状态栏', t: '比例尺 + 家底清单',
+      d: '显示当前过滤后剩多少节点/文件/符号,以及这份审计的总量:55 节点 · 35 文件 · 45 符号 · 55 证据。如果加了过滤,这里会提醒你当前看的是子集,避免「没看到 = 不存在」的误判。',
+      a: '类比:地图角落的比例尺——提醒你手里的图缩放到什么程度,别把 1:10000 的图当成看到了全城每个井盖。' }
+  };
+  var wfDetail = document.getElementById('wf-detail');
+  function showWf(k) {
+    var w = WF[k]; if (!w) return;
+    wfDetail.innerHTML = '';
+    var tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = w.tag;
+    var h = document.createElement('h3'); h.textContent = w.t;
+    var p = document.createElement('p'); p.textContent = w.d;
+    var a = document.createElement('div'); a.className = 'analogy'; a.textContent = w.a;
+    wfDetail.appendChild(tag); wfDetail.appendChild(h); wfDetail.appendChild(p); wfDetail.appendChild(a);
+    document.querySelectorAll('.wf-block').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-k') === k); });
+  }
+  document.querySelectorAll('.wf-block').forEach(function (b) {
+    b.addEventListener('click', function () { showWf(b.getAttribute('data-k')); });
+  });
+  showWf('mid');
+
+  /* ---------- Part 2: 五关路线 ---------- */
+  var STAGES = [
+    { n: '0', color: 'var(--gray)', title: '学会看图 —— 先背图例,再上路', time: '约 15 分钟',
+      goal: '搞懂<b>这份报告本身怎么读</b>:状态四色、置信度、证据等级。',
+      analogy: '类比:考驾照先认仪表盘。指示灯什么意思都没搞清就上路,后面全是蒙。',
+      links: [
+        ['顶栏「说明」按钮 —— 看一遍全部图例', 'report.html'],
+        ['把置信度过滤切到 high、状态切到 implemented,观察画面变化', 'report.html'],
+        ['左栏切到「逻辑树」,再切回「项目树」,感受两种视图', 'report.html'],
+        ['按 / 聚焦搜索框,搜 graph.py 并点开它', 'report.html#view=source']
+      ],
+      checks: [
+        '能用自己的话说出 implemented / delegated / absent / unknown 四种状态的区别(自家造的 / 外包的 / 压根没这功能 / 还没查清)',
+        '能背出证据等级排序:runtime &gt; test &gt; code &gt; config &gt; docs &gt; inference,并说出为什么 README 单独证明不了执行链路',
+        '会用「仅核心」勾选框给左栏降噪'
+      ],
+      fact: null },
+
+    { n: '1', color: 'var(--blue)', title: '俯瞰全城 —— 一句话说清 deepagents 是什么', time: '30–60 分钟',
+      goal: '只看 Overview,回答两个问题:<b>它负责什么、它不负责什么</b>。',
+      analogy: '类比:先坐直升机看城市分区,不进任何一栋楼。这个框架最重要的结论在落地页就给了:它是个「装修公司」,不造发动机。',
+      links: [
+        ['Overview —— 项目边界:左栏「本仓库负责」vs 右栏「委托给」', 'report.html#view=overview'],
+        ['Overview —— 逐条扫过 9 条关键 findings(每条都影响你怎么用它)', 'report.html#view=overview'],
+        ['核心结论的架构节点:agent loop 完全委托', 'report.html#view=architecture&sel=node:nd-orch-agent-loop']
+      ],
+      checks: [
+        '能用「装修公司 vs 毛坯房+水电」的类比,向同事讲清 deepagents 与 langgraph / langchain 的分工',
+        '能说出至少 3 条关键 findings:LocalShellBackend 用 shell=True 直跑宿主毫无隔离;recursion_limit 硬编码 9999;文件权限只在工具层强制、存在明确绕过面;model=None 时兜底硬编码 ChatAnthropic;子代理状态隔离用黑名单、新增中间件状态键会外泄',
+        '能在「委托给」清单里指出至少 3 项(loop、取消、checkpoint、流式事件、模型重试…)'
+      ],
+      fact: '<b>本框架最重要的一个事实:</b>deepagents 是「中间件装配器」而非运行时——它把中间件/工具/子代理/权限组装好,真正的 agent loop 整体委托给 langchain create_agent + langgraph。它的自研重心是上下文工程(压缩/驱逐/截断三件套)。' },
+
+    { n: '2', color: 'var(--accent)', title: '走主干道 —— 装配链 + 工具调用链', time: '2–3 小时',
+      goal: '在 Architecture 层从上往下过一遍,重点走两条流,做到<b>每层能报出一个代表文件</b>。',
+      analogy: '类比:沿主干道把城市开车走一遍。不求记住每家店,但每个区要认得一栋地标楼(graph.py、protocol.py、filesystem.py…)。',
+      links: [
+        ['入口节点:create_deep_agent 装配器(看它的上下游高亮)', 'report.html#view=architecture&sel=node:nd-entry-sdk-api'],
+        ['Runtime Flows · 预组装装配链(页首第 1 条,7 步)', 'report.html#view=flows'],
+        ['Runtime Flows · 工具调用链(第 2 条,经 langgraph ToolNode,6 步)', 'report.html#view=flows'],
+        ['集成层地标:backends/protocol.py 后端抽象(1000 行)', 'report.html#view=architecture&sel=node:nd-exec-executor'],
+        ['权限层地标:_check_fs_permission 集中判定', 'report.html#view=architecture&sel=node:nd-perm-authorization']
+      ],
+      checks: [
+        '合上报告,能画出:创建 create_deep_agent → 装配 middleware/工具/子代理 → 编译成图 → 模型调用 → 工具执行 → 结果回填 → 下一轮 → 无工具调用则停止',
+        '每层报出一个代表文件:入口=graph.py;状态=state.py(DeepAgentState);集成=backends/protocol.py;权限=filesystem.py;执行=backends/local_shell.py',
+        '点任一节点,会用上游(一类色)/下游(另一类色)高亮,讲出「谁构造了它、它又调用谁」',
+        '至少把 5 条结论的 path:line 复制出来、跳回源码原文对照过'
+      ],
+      fact: null },
+
+    { n: '3', color: 'var(--green)', title: '打开地下室 —— 状态数据 + 四条特殊链路', time: '2–3 小时',
+      goal: '搞清<b>数据藏在哪、谁读谁写</b>,再走子代理/压缩/审批/恢复四条特殊流。',
+      analogy: '类比:地上看完看地下管线图。水从哪来、污水往哪排、总闸在哪——状态对象就是 agent 的水管系统。',
+      links: [
+        ['State & Data · 虚拟文件系统状态(默认存进图状态 files 通道)', 'report.html#view=state&sel=state:st-files'],
+        ['State & Data · 消息历史通道 + 线程 checkpoint', 'report.html#view=state&sel=state:st-messages'],
+        ['Runtime Flows · 子代理派发链(第 3 条,task 工具 → 嵌套子图)', 'report.html#view=flows'],
+        ['Runtime Flows · 上下文压缩链(第 4 条,wrap_model_call)', 'report.html#view=flows'],
+        ['Runtime Flows · 人工审批链(第 5 条,权限 interrupt → HITL)', 'report.html#view=flows'],
+        ['Runtime Flows · 错误恢复链(第 6 条,孤儿 tool call 修补 + 溢出降级)', 'report.html#view=flows']
+      ],
+      checks: [
+        '能说出 8 个状态对象里至少 4 个的用途与存放位置(messages / files / async-tasks / memory / thread-checkpoint…)',
+        '能讲清上下文压缩:何时触发(token 阈值/预算)→ 怎么切 → 旧消息去哪了(offload 到 backend)',
+        '能讲清审批三步:权限规则/interrupt_on 命中 → 图中断(interrupt)→ 人审批后同 thread_id 恢复',
+        '能说出子代理状态隔离是黑名单机制,以及 findings 里对应的泄漏风险'
+      ],
+      fact: null },
+
+    { n: '4', color: 'var(--yellow)', title: '拿到钥匙 —— 从看懂到能改', time: '按需,3 小时起步',
+      goal: '按 Development Guide 的配方<b>动手改一次真实代码</b>。到这一步,报告从地图变成了施工手册。',
+      analogy: '类比:从游客变成住户,开始装修自己的房间——这时你才真正需要看懂水电图。',
+      links: [
+        ['Extensions —— 11 个扩展点,先看 AgentMiddleware / 自定义工具 / BackendProtocol 三个', 'report.html#view=extensions'],
+        ['Development Guide —— 左栏点「添加自定义工具」(rc-add-tool,低风险)', 'report.html#view=dev'],
+        ['Source Index —— 当字典用:反查任意文件属于哪层、关键符号是什么', 'report.html#view=source']
+      ],
+      checks: [
+        '跑通 rc-add-tool:给自己的 create_deep_agent 加一个自定义工具并验证被调用',
+        '能说出:若要把 LocalShellBackend(findings 里 shell=True 无隔离)换成隔离沙箱,应该实现 SandboxBackendProtocol 而不是改运行时',
+        '会按「先读哪些文件 → 实现哪些接口 → 保持哪些不变量 → 怎么验证」的配方结构独立学习其余 8 张配方'
+      ],
+      fact: null }
+  ];
+
+  var LS_KEY = 'atlas-roadmap-deepagents-v1';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (e) { saved = {}; }
+
+  var routeEl = document.getElementById('route');
+  var totalChecks = 0, doneChecks = 0;
+
+  STAGES.forEach(function (st, si) {
+    var stage = document.createElement('div'); stage.className = 'stage';
+    var rail = document.createElement('div'); rail.className = 'stage-rail';
+    var dot = document.createElement('div'); dot.className = 'stage-dot'; dot.style.background = st.color; dot.textContent = st.n;
+    var card = document.createElement('div'); card.className = 'stage-card';
+
+    var head = document.createElement('div'); head.className = 'stage-head';
+    var tt = document.createElement('div'); tt.className = 'stage-title'; tt.textContent = '第 ' + st.n + ' 关 · ' + st.title.replace(' —— ', '\u2009——\u2009');
+    var tm = document.createElement('span'); tm.className = 'stage-time'; tm.textContent = '⏱ ' + st.time;
+    head.appendChild(tt); head.appendChild(tm);
+
+    var goal = document.createElement('div'); goal.className = 'stage-goal'; goal.innerHTML = '目标:' + st.goal;
+    var ana = document.createElement('div'); ana.className = 'stage-analogy'; ana.textContent = st.analogy;
+
+    var cols = document.createElement('div'); cols.className = 'stage-cols';
+    var leftCol = document.createElement('div'), rightCol = document.createElement('div');
+    var lh = document.createElement('h4'); lh.textContent = '在报告里点哪里(直达链接)';
+    var ul = document.createElement('ul'); ul.className = 'links';
+    st.links.forEach(function (L) {
+      var li = document.createElement('li');
+      var a = document.createElement('a'); a.href = L[1]; a.textContent = L[0]; a.target = '_blank'; a.rel = 'noopener';
+      li.appendChild(a); ul.appendChild(li);
+    });
+    leftCol.appendChild(lh); leftCol.appendChild(ul);
+
+    var rh = document.createElement('h4'); rh.textContent = '毕业自测(全部打勾 = 过关)';
+    var cl = document.createElement('ul'); cl.className = 'checks';
+    st.checks.forEach(function (c, ci) {
+      totalChecks++;
+      var id = 'ck-' + si + '-' + ci;
+      var li = document.createElement('li');
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = id;
+      if (saved[id]) { cb.checked = true; doneChecks++; }
+      var lb = document.createElement('label'); lb.htmlFor = id; lb.innerHTML = c;
+      cb.addEventListener('change', (function (key) {
+        return function () {
+          saved[key] = this.checked;
+          try { localStorage.setItem(LS_KEY, JSON.stringify(saved)); } catch (e) {}
+          updateProgress();
+        };
+      })(id));
+      li.appendChild(cb); li.appendChild(lb); cl.appendChild(li);
+    });
+    rightCol.appendChild(rh); rightCol.appendChild(cl);
+
+    cols.appendChild(leftCol); cols.appendChild(rightCol);
+    card.appendChild(head); card.appendChild(goal); card.appendChild(ana); card.appendChild(cols);
+    if (st.fact) { var f = document.createElement('div'); f.className = 'fact'; f.innerHTML = st.fact; card.appendChild(f); }
+    stage.appendChild(rail); stage.appendChild(dot); stage.appendChild(card);
+    routeEl.appendChild(stage);
+  });
+
+  var pfill = document.getElementById('pfill'), ptext = document.getElementById('ptext');
+  function updateProgress() {
+    var pct = totalChecks ? Math.round(doneChecks / totalChecks * 100) : 0;
+    pfill.style.width = pct + '%';
+    ptext.textContent = '毕业自测 ' + doneChecks + ' / ' + totalChecks + (pct === 100 ? ' · 🎓 全部通关!' : '');
+  }
+  updateProgress();
+})();
+</script>
+</body>
+</html>
