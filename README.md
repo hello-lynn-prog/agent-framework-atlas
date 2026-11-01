@@ -47,7 +47,7 @@
 
 所有审计由自研 skill **agent-code-atlas** 生成：统一架构本体 + 证据分级（runtime > test > code > config > docs > inference）+ 四态实现状态（implemented / delegated / absent / unknown）。
 
-工具仓库：（待补 agent-code-atlas 的 GitHub 链接）
+工具仓库：https://github.com/hello-lynn-prog/agent-code-atlas
 
 ## 声明
 
