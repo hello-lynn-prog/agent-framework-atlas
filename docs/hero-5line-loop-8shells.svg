@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="-apple-system,'Segoe UI','Microsoft YaHei','PingFang SC',sans-serif">
+  <rect x="0" y="0" width="1200" height="720" rx="16" fill="#f6f8fa"/>
+
+  <text x="600" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#0f172a">同一个 5 行循环，八种壳</text>
+  <text x="600" y="82" text-anchor="middle" font-size="15" fill="#57606a">逐行审计 8 个 Agent 框架的源码后得到的全景结论：行业竞争不在发明新循环，而在把它装进什么壳、允许你从哪里改</text>
+
+  <!-- 左：5 行循环代码卡 -->
+  <rect x="44" y="112" width="420" height="388" rx="12" fill="#0d1117"/>
+  <circle cx="72" cy="140" r="6" fill="#ff5f56"/>
+  <circle cx="92" cy="140" r="6" fill="#ffbd2e"/>
+  <circle cx="112" cy="140" r="6" fill="#27c93f"/>
+  <text x="134" y="145" font-size="13" fill="#8b949e" font-family="Consolas,Menlo,monospace">agent_loop.py</text>
+  <g font-family="Consolas,Menlo,monospace" font-size="16">
+    <text x="72" y="196" fill="#7ee787">while True:</text>
+    <text x="72" y="238" fill="#e6edf3">回复 = 调用模型(历史消息)</text>
+    <text x="72" y="280" fill="#e6edf3">if 没有工具调用: <tspan fill="#ff7b72">break</tspan></text>
+    <text x="72" y="322" fill="#e6edf3">结果 = 执行工具(工具调用)</text>
+    <text x="72" y="364" fill="#e6edf3">历史消息.append(结果)</text>
+  </g>
+  <text x="72" y="446" font-size="13.5" fill="#8b949e">模型认为干完了才停；每家真正的差异</text>
+  <text x="72" y="468" font-size="13.5" fill="#8b949e">在于：这 5 行外面包了几层、哪里能插手。</text>
+  <text x="254" y="530" text-anchor="middle" font-size="15" font-weight="600" fill="#57606a">八家内核都是它，无一例外</text>
+
+  <!-- 右：八种壳 2×4 卡片 -->
+  <g>
+    <rect x="500" y="112" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="524" cy="138" r="5" fill="#f97316"/>
+    <text x="538" y="144" font-size="17" font-weight="700" fill="#1f2328">Codex <tspan font-size="12" font-weight="400" fill="#8b949e">OpenAI</tspan></text>
+    <text x="524" y="168" font-size="13" font-weight="600" fill="#0969da">外环任务 + 内环采样</text>
+    <text x="524" y="188" font-size="12" fill="#57606a">审批与沙箱焊死在循环体里</text>
+  </g>
+  <g>
+    <rect x="856" y="112" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="880" cy="138" r="5" fill="#d97706"/>
+    <text x="894" y="144" font-size="17" font-weight="700" fill="#1f2328">Claude Agent SDK <tspan font-size="12" font-weight="400" fill="#8b949e">Anthropic</tspan></text>
+    <text x="880" y="168" font-size="13" font-weight="600" fill="#0969da">闭源消息泵</text>
+    <text x="880" y="188" font-size="12" fill="#57606a">循环在闭源 CLI 里，换即插即用</text>
+  </g>
+  <g>
+    <rect x="500" y="212" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="524" cy="238" r="5" fill="#10b981"/>
+    <text x="538" y="244" font-size="17" font-weight="700" fill="#1f2328">OpenAI Agents SDK <tspan font-size="12" font-weight="400" fill="#8b949e">Python</tspan></text>
+    <text x="524" y="268" font-size="13" font-weight="600" fill="#0969da">单 while · 四态纸条</text>
+    <text x="524" y="288" font-size="12" fill="#57606a">每轮吐一张"下一步"：完成/换人/继续/暂停</text>
+  </g>
+  <g>
+    <rect x="856" y="212" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="880" cy="238" r="5" fill="#3b82f6"/>
+    <text x="894" y="244" font-size="17" font-weight="700" fill="#1f2328">LangGraph <tspan font-size="12" font-weight="400" fill="#8b949e">LangChain</tspan></text>
+    <text x="880" y="268" font-size="13" font-weight="600" fill="#0969da">Pregel 图超步</text>
+    <text x="880" y="288" font-size="12" fill="#57606a">你画流程图，引擎替你转圈</text>
+  </g>
+  <g>
+    <rect x="500" y="312" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="524" cy="338" r="5" fill="#8b5cf6"/>
+    <text x="538" y="344" font-size="17" font-weight="700" fill="#1f2328">deepagents <tspan font-size="12" font-weight="400" fill="#8b949e">LangChain</tspan></text>
+    <text x="524" y="368" font-size="13" font-weight="600" fill="#0969da">图 + 中间件栈</text>
+    <text x="524" y="388" font-size="12" fill="#57606a">约 700 行装配，循环委托给 langgraph</text>
+  </g>
+  <g>
+    <rect x="856" y="312" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="880" cy="338" r="5" fill="#0ea5e9"/>
+    <text x="894" y="344" font-size="17" font-weight="700" fill="#1f2328">Pi <tspan font-size="12" font-weight="400" fill="#8b949e">极简内核</tspan></text>
+    <text x="880" y="368" font-size="13" font-weight="600" fill="#0969da">双 while · 9 个插槽</text>
+    <text x="880" y="388" font-size="12" fill="#57606a">140 行读完整个循环，教学级可读</text>
+  </g>
+  <g>
+    <rect x="500" y="412" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="524" cy="438" r="5" fill="#ef4444"/>
+    <text x="538" y="444" font-size="17" font-weight="700" fill="#1f2328">Hermes <tspan font-size="12" font-weight="400" fill="#8b949e">Nous</tspan></text>
+    <text x="524" y="468" font-size="13" font-weight="600" fill="#0969da">phase 流水线</text>
+    <text x="524" y="488" font-size="12" fill="#57606a">一轮拆 20 个工位，传同一本大账本</text>
+  </g>
+  <g>
+    <rect x="856" y="412" width="344" height="88" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="880" cy="438" r="5" fill="#64748b"/>
+    <text x="894" y="444" font-size="17" font-weight="700" fill="#1f2328">DeepSeek Harness <tspan font-size="12" font-weight="400" fill="#8b949e">DSH</tspan></text>
+    <text x="880" y="468" font-size="13" font-weight="600" fill="#0969da">三层 while · 事件瀑布</text>
+    <text x="880" y="488" font-size="12" fill="#57606a">循环不是特权内核，每个决策点可拦截</text>
+  </g>
+
+  <!-- 底部三条洞察 -->
+  <g>
+    <rect x="44" y="560" width="360" height="84" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="64" y="592" font-size="15" font-weight="700" fill="#1f2328">通用 ⇄ 可编程</text>
+    <text x="64" y="618" font-size="12.5" fill="#57606a">越通用的引擎，循环越远离 agent、越好改</text>
+  </g>
+  <g>
+    <rect x="420" y="560" width="360" height="84" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="440" y="592" font-size="15" font-weight="700" fill="#1f2328">产品化 ⇄ 焊死</text>
+    <text x="440" y="618" font-size="12.5" fill="#57606a">越贴近产品，循环和策略咬得越紧、越改不动</text>
+  </g>
+  <g>
+    <rect x="796" y="560" width="360" height="84" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="816" y="592" font-size="15" font-weight="700" fill="#1f2328">安全默认值 = 真实态度</text>
+    <text x="816" y="618" font-size="12.5" fill="#57606a">产品帮你把闸焊好；框架默认放行、责任自负</text>
+  </g>
+
+  <text x="600" y="692" text-anchor="middle" font-size="13" fill="#8b949e">每条结论落到 file:line · 8 份单项目审计 + 55 概念 × 6 家对比矩阵 + 图解速览，全部离线可看</text>
+</svg>
